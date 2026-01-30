@@ -67,9 +67,8 @@ async function handleMessage(from, message, messageId) {
     console.log(`📱 Mensaje de ${from}: "${message}" (Paso: ${session.step})`);
 
     // Comandos globales que funcionan en cualquier momento
-    if (textLower === 'hola' || textLower === 'inicio' || textLower === 'menu' || textLower === 'menú' || textLower === 'empezar') {
+    if (textLower === 'hola' || textLower === 'inicio' || textLower === 'empezar') {
       await sendWelcomeMessage(from);
-      clearSession(from);
       return;
     }
 
