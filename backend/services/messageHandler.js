@@ -604,7 +604,7 @@ async function procesarPedido(phoneNumber) {
       throw new Error('No se pudo crear el pedido');
     }
 
-    // Enviar confirmación
+    // Enviar confirmación al cliente
     await whatsappService.sendReaction(phoneNumber, '', '✅');
     await whatsappService.sendTextMessage(phoneNumber, 
       `🎉 *¡Pedido Confirmado!*\n\n` +
@@ -615,6 +615,34 @@ async function procesarPedido(phoneNumber) {
       `Te notificaremos cuando esté en camino.\n\n` +
       `Escribe *hola* para hacer otro pedido.`
     );
+
+    // Enviar notificación al restaurante
+    const numeroRestaurante = '+5213349420820';
+    const ahora = new Date();
+    const hora = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    
+    let notificacion = `🔔 *NUEVO PEDIDO #${pedido.id}*\n\n`;
+    notificacion += `👤 *Cliente:* ${nombre}\n`;
+    notificacion += `📱 *Teléfono:* ${phoneNumber}\n\n`;
+    notificacion += `🛒 *Productos:*\n`;
+    
+    carrito.forEach(item => {
+      const subtotal = item.precio * item.cantidad;
+      const precioFormat = subtotal % 1 === 0 ? subtotal : subtotal.toFixed(2);
+      notificacion += `• ${item.cantidad}x ${item.nombre} - $${precioFormat} MXN\n`;
+    });
+    
+    const totalFormat = pedido.total % 1 === 0 ? pedido.total : pedido.total.toFixed(2);
+    notificacion += `\n💰 *Total: $${totalFormat} MXN*\n`;
+    notificacion += `📍 *${tipoEntrega}*\n`;
+    
+    if (notas) {
+      notificacion += `📝 *Notas:* ${notas}\n`;
+    }
+    
+    notificacion += `\n⏰ *Hora:* ${hora}`;
+    
+    await whatsappService.sendTextMessage(numeroRestaurante, notificacion);
 
     clearSession(phoneNumber);
 
