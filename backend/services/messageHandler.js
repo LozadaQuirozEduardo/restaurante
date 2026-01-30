@@ -117,6 +117,10 @@ async function handleMessage(from, message, messageId) {
         await handlePedirNombre(from, message);
         break;
 
+      case 'pedir_tipo_entrega':
+        await handlePedirTipoEntrega(from, message);
+        break;
+
       case 'pedir_direccion':
         await handlePedirDireccion(from, message);
         break;
@@ -147,7 +151,7 @@ async function handleMessage(from, message, messageId) {
  * Mensaje de bienvenida
  */
 async function sendWelcomeMessage(phoneNumber) {
-  const welcomeText = `¡Hola! 👋 Bienvenido a nuestro restaurante.
+  const welcomeText = `¡Hola! 👋 Bienvenido a *El Rinconcito* 🍽️
 
 ¿En qué puedo ayudarte hoy?
 
@@ -486,17 +490,70 @@ async function solicitarNombre(phoneNumber) {
  */
 async function handlePedirNombre(phoneNumber, message) {
   const session = getSession(phoneNumber);
-  session.data.nombre = message;
-  session.data.tipoEntrega = 'Recoger en restaurante';
+  const nombre = message.trim();
+
+  if (nombre.length < 2) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ Por favor ingresa un nombre válido.');
+    return;
+  }
+
+  session.data.nombre = nombre;
 
   await whatsappService.sendTextMessage(phoneNumber, 
-    `Gracias ${message}! 🏪\n\n` +
-    `Tu pedido será para: *Recoger en restaurante* 📍\n\n` +
-    `¿Tienes alguna nota adicional para tu pedido? (Ej: Sin cebolla, extra picante, etc.)\n\n` +
-    `O escribe *no* si no tienes notas.`
+    `Gracias ${nombre}! 📍\n\n` +
+    `¿Cómo deseas recibir tu pedido?\n\n` +
+    `1️⃣ *Recoger en restaurante* (Sin costo)\n` +
+    `   📍 Unidad Habitacional los Héroes Chalco\n` +
+    `   Mz 17 Lt 17 planta baja el cupido\n` +
+    `   C.P 56644 (enfrente glorieta el oasis)\n\n` +
+    `2️⃣ *Servicio a domicilio* 🏠 (+$15 MXN)\n\n` +
+    `Responde *1* o *2*`
   );
   
-  updateSession(phoneNumber, { step: 'pedir_notas' });
+  updateSession(phoneNumber, { step: 'pedir_tipo_entrega' });
+}
+
+/**
+ * Manejar tipo de entrega
+ */
+async function handlePedirTipoEntrega(phoneNumber, message) {
+  const session = getSession(phoneNumber);
+  const respuesta = message.trim();
+
+  if (respuesta === '1' || respuesta.toLowerCase().includes('recoger') || respuesta.toLowerCase().includes('restaurante')) {
+    session.data.tipoEntrega = 'Recoger en restaurante';
+    session.data.direccion = 'Unidad Habitacional los Héroes Chalco Mz 17 Lt 17 planta baja el cupido C.P 56644';
+
+    await whatsappService.sendTextMessage(phoneNumber, 
+      `Perfecto! 🏪\n\n` +
+      `Tu pedido será para: *Recoger en restaurante*\n` +
+      `📍 Unidad Habitacional los Héroes Chalco\n` +
+      `Mz 17 Lt 17 planta baja el cupido C.P 56644\n` +
+      `(enfrente de la glorieta el oasis)\n\n` +
+      `¿Tienes alguna nota adicional para tu pedido? (Ej: Sin cebolla, extra picante, etc.)\n\n` +
+      `O escribe *no* si no tienes notas.`
+    );
+    
+    updateSession(phoneNumber, { step: 'pedir_notas' });
+    
+  } else if (respuesta === '2' || respuesta.toLowerCase().includes('domicilio') || respuesta.toLowerCase().includes('entregar')) {
+    session.data.tipoEntrega = 'Servicio a domicilio';
+    session.data.costoEnvio = 15;
+
+    await whatsappService.sendTextMessage(phoneNumber, 
+      `Perfecto! 🏠\n\n` +
+      `*Costo de envío: $15 MXN*\n\n` +
+      `Por favor, dime tu dirección completa para la entrega:\n\n` +
+      `(Incluye calle, número, colonia, referencias)`
+    );
+    
+    updateSession(phoneNumber, { step: 'pedir_direccion' });
+    
+  } else {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ Por favor responde *1* para recoger en restaurante o *2* para servicio a domicilio.');
+  }
 }
 
 /**
@@ -504,11 +561,21 @@ async function handlePedirNombre(phoneNumber, message) {
  */
 async function handlePedirDireccion(phoneNumber, message) {
   const session = getSession(phoneNumber);
-  session.data.direccion = message;
+  const direccion = message.trim();
+
+  if (direccion.length < 10) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ Por favor proporciona una dirección completa con calle, número y colonia.');
+    return;
+  }
+
+  session.data.direccion = direccion;
 
   await whatsappService.sendTextMessage(phoneNumber, 
-    '📝 ¿Tienes alguna nota o comentario especial para tu pedido?\n\n' +
-    '(Escribe *no* si no tienes comentarios)'
+    `Perfecto! 📍\n\n` +
+    `Dirección de entrega:\n${direccion}\n\n` +
+    `¿Tienes alguna nota adicional para tu pedido? (Ej: Sin cebolla, extra picante, tocar timbre, etc.)\n\n` +
+    `O escribe *no* si no tienes notas.`
   );
   
   updateSession(phoneNumber, { step: 'pedir_notas' });
@@ -532,7 +599,7 @@ async function handlePedirNotas(phoneNumber, message) {
  */
 async function mostrarResumenPedido(phoneNumber) {
   const session = getSession(phoneNumber);
-  const { carrito, nombre, tipoEntrega, notas } = session.data;
+  const { carrito, nombre, tipoEntrega, direccion, notas, costoEnvio } = session.data;
 
   let total = 0;
   let resumen = '📋 *Resumen de tu Pedido*\n\n';
@@ -545,10 +612,24 @@ async function mostrarResumenPedido(phoneNumber) {
     resumen += `  • ${item.cantidad}x ${item.nombre} - $${precioFormat} MXN\n`;
   });
 
+  // Agregar costo de envío si es a domicilio
+  if (costoEnvio) {
+    resumen += `\n📦 *Envío a domicilio:* $${costoEnvio} MXN\n`;
+    total += costoEnvio;
+  }
+
   const totalFormat = total % 1 === 0 ? total : total.toFixed(2);
   resumen += `\n💰 *Total: $${totalFormat} MXN*\n\n`;
   resumen += `👤 *Nombre:* ${nombre}\n`;
-  resumen += `📍 *Tipo de entrega:* ${tipoEntrega}\n`;
+  
+  if (tipoEntrega === 'Servicio a domicilio') {
+    resumen += `🏠 *Entrega:* ${tipoEntrega}\n`;
+    resumen += `📍 *Dirección:* ${direccion}\n`;
+  } else {
+    resumen += `🏪 *Entrega:* ${tipoEntrega}\n`;
+    resumen += `📍 *Dirección:* Unidad Habitacional los Héroes Chalco\n`;
+    resumen += `   Mz 17 Lt 17 planta baja el cupido C.P 56644\n`;
+  }
   
   if (notas) {
     resumen += `📝 *Notas:* ${notas}\n`;
@@ -583,7 +664,16 @@ async function handleConfirmarPedido(phoneNumber, message) {
 async function procesarPedido(phoneNumber) {
   try {
     const session = getSession(phoneNumber);
-    const { carrito, nombre, tipoEntrega, notas } = session.data;
+    const { carrito, nombre, tipoEntrega, notas, costoEnvio } = session.data;
+
+    // Calcular total de productos
+    let totalProductos = 0;
+    carrito.forEach(item => {
+      totalProductos += item.precio * item.cantidad;
+    });
+
+    // Agregar costo de envío si es a domicilio
+    const totalFinal = costoEnvio ? totalProductos + costoEnvio : totalProductos;
 
     // Obtener o crear cliente
     const cliente = await supabaseService.getOrCreateCliente(phoneNumber, nombre);
@@ -592,7 +682,7 @@ async function procesarPedido(phoneNumber) {
       throw new Error('No se pudo crear el cliente');
     }
 
-    // Crear pedido
+    // Crear pedido con el total correcto
     const pedido = await supabaseService.createPedido(
       cliente.id,
       carrito,
@@ -603,6 +693,9 @@ async function procesarPedido(phoneNumber) {
     if (!pedido) {
       throw new Error('No se pudo crear el pedido');
     }
+    
+    // Actualizar el total del pedido con el costo de envío si aplica
+    pedido.total = totalFinal;
 
     // Enviar confirmación al cliente
     await whatsappService.sendReaction(phoneNumber, '', '✅');
@@ -626,15 +719,30 @@ async function procesarPedido(phoneNumber) {
     notificacion += `📱 *Teléfono:* ${phoneNumber}\n\n`;
     notificacion += `🛒 *Productos:*\n`;
     
+    let subtotalProductos = 0;
     carrito.forEach(item => {
       const subtotal = item.precio * item.cantidad;
+      subtotalProductos += subtotal;
       const precioFormat = subtotal % 1 === 0 ? subtotal : subtotal.toFixed(2);
       notificacion += `• ${item.cantidad}x ${item.nombre} - $${precioFormat} MXN\n`;
     });
     
-    const totalFormat = pedido.total % 1 === 0 ? pedido.total : pedido.total.toFixed(2);
+    // Mostrar desglose del envío
+    if (costoEnvio) {
+      const subtotalFormat = subtotalProductos % 1 === 0 ? subtotalProductos : subtotalProductos.toFixed(2);
+      notificacion += `\n📦 *Subtotal productos:* $${subtotalFormat} MXN\n`;
+      notificacion += `📦 *Envío a domicilio:* $${costoEnvio} MXN\n`;
+    }
+    
+    const totalFormat = totalFinal % 1 === 0 ? totalFinal : totalFinal.toFixed(2);
     notificacion += `\n💰 *Total: $${totalFormat} MXN*\n`;
-    notificacion += `📍 *${tipoEntrega}*\n`;
+    
+    if (tipoEntrega === 'Servicio a domicilio') {
+      notificacion += `🏠 *Entrega:* ${tipoEntrega}\n`;
+      notificacion += `📍 *Dirección:* ${session.data.direccion}\n`;
+    } else {
+      notificacion += `🏪 *Entrega:* ${tipoEntrega}\n`;
+    }
     
     if (notas) {
       notificacion += `📝 *Notas:* ${notas}\n`;
