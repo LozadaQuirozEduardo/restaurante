@@ -384,6 +384,10 @@ async function handlePedirProducto(phoneNumber, message) {
     productosSeleccionados.push(productos[productoIndex]);
   }
 
+  // Guardar todos los productos seleccionados y empezar con el primero
+  session.data.productosSeleccionados = productosSeleccionados;
+  session.data.indiceProdActual = 0;
+  
   const producto = productosSeleccionados[0];
   
   await whatsappService.sendTextMessage(phoneNumber, 
@@ -400,7 +404,7 @@ async function handlePedirProducto(phoneNumber, message) {
  */
 async function handlePedirCantidad(phoneNumber, message) {
   const session = getSession(phoneNumber);
-  const { productoSeleccionado, carrito } = session.data;
+  const { productoSeleccionado, carrito, productosSeleccionados, indiceProdActual } = session.data;
 
   const cantidad = parseInt(message);
 
@@ -421,13 +425,33 @@ async function handlePedirCantidad(phoneNumber, message) {
   const subtotal = productoSeleccionado.precio * cantidad;
 
   await whatsappService.sendTextMessage(phoneNumber, 
-    `✅ Agregado: ${cantidad}x ${productoSeleccionado.nombre} - $${subtotal.toFixed(2)}\n\n` +
-    `¿Deseas agregar más productos?\n\n` +
-    `✅ *si* - Agregar más\n` +
-    `✅ *no* - Continuar con el pedido`
+    `✅ Agregado: ${cantidad}x ${productoSeleccionado.nombre} - $${subtotal.toFixed(2)}`
   );
 
-  updateSession(phoneNumber, { step: 'pedir_mas_productos' });
+  // Verificar si hay más productos pendientes de la selección múltiple
+  if (productosSeleccionados && indiceProdActual < productosSeleccionados.length - 1) {
+    // Pasar al siguiente producto
+    const siguienteIndice = indiceProdActual + 1;
+    session.data.indiceProdActual = siguienteIndice;
+    const siguienteProducto = productosSeleccionados[siguienteIndice];
+    
+    await whatsappService.sendTextMessage(phoneNumber,
+      `\n✅ Seleccionaste: *${siguienteProducto.nombre}* ($${siguienteProducto.precio.toFixed(2)})\n\n` +
+      `📦 ¿Cuántas unidades deseas? (Escribe un número)`
+    );
+    
+    session.data.productoSeleccionado = siguienteProducto;
+    updateSession(phoneNumber, { step: 'pedir_cantidad' });
+  } else {
+    // Ya terminó con todos los productos seleccionados
+    await whatsappService.sendTextMessage(phoneNumber, 
+      `\n¿Deseas agregar más productos?\n\n` +
+      `✅ *si* - Agregar más\n` +
+      `✅ *no* - Continuar con el pedido`
+    );
+    
+    updateSession(phoneNumber, { step: 'pedir_mas_productos' });
+  }
 }
 
 /**
