@@ -149,6 +149,7 @@ async function createPedido(clienteId, items, direccion = null, notas = null, te
         total += subtotal;
         detallesConPrecios.push({
           producto_id: item.producto_id,
+          producto_nombre: producto.nombre,
           cantidad: item.cantidad,
           precio_unitario: producto.precio,
           subtotal: subtotal
