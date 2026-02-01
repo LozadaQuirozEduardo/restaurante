@@ -136,7 +136,7 @@ async function getOrCreateCliente(telefono, nombre = null) {
 /**
  * Crear un nuevo pedido
  */
-async function createPedido(clienteId, items, direccion = null, notas = null) {
+async function createPedido(clienteId, items, direccion = null, notas = null, telefono = null, nombreCliente = null) {
   try {
     // Calcular total del pedido
     let total = 0;
@@ -162,6 +162,8 @@ async function createPedido(clienteId, items, direccion = null, notas = null) {
       .insert([
         {
           cliente_id: clienteId,
+          telefono: telefono,
+          nombre_cliente: nombreCliente,
           estado: 'pendiente',
           total: total,
           direccion_entrega: direccion,

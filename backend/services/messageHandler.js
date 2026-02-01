@@ -687,7 +687,9 @@ async function procesarPedido(phoneNumber) {
       cliente.id,
       carrito,
       tipoEntrega,
-      notas
+      notas,
+      phoneNumber,
+      nombre
     );
 
     if (!pedido) {
