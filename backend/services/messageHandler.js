@@ -701,18 +701,31 @@ async function procesarPedido(phoneNumber) {
 
     // Enviar confirmación al cliente
     await whatsappService.sendReaction(phoneNumber, '', '✅');
-    await whatsappService.sendTextMessage(phoneNumber, 
-      `🎉 *¡Pedido Confirmado!*\n\n` +
-      `📦 Número de pedido: #${pedido.id}\n` +
-      `💰 Total: $${pedido.total.toFixed(2)}\n` +
-      `⏰ Tiempo estimado: 30-45 minutos\n\n` +
-      `Gracias por tu pedido ${nombre}! 😊\n\n` +
-      `Te notificaremos cuando esté en camino.\n\n` +
-      `Escribe *hola* para hacer otro pedido.`
-    );
+    
+    let mensajeConfirmacion = `🎉 *¡Pedido Confirmado!*\n\n`;
+    mensajeConfirmacion += `📦 Número de pedido: #${pedido.id}\n`;
+    mensajeConfirmacion += `💰 Total: $${pedido.total.toFixed(2)}\n`;
+    mensajeConfirmacion += `⏰ Tiempo estimado: 30-45 minutos\n\n`;
+    mensajeConfirmacion += `Gracias por tu pedido ${nombre}! 😊\n\n`;
+    
+    if (tipoEntrega === 'Servicio a domicilio') {
+      mensajeConfirmacion += `🏠 Tu pedido será entregado en: ${session.data.direccion}\n\n`;
+      mensajeConfirmacion += `Te notificaremos cuando esté en camino.\n\n`;
+    } else {
+      mensajeConfirmacion += `🏪 *Recoger en:*\n`;
+      mensajeConfirmacion += `El Rinconcito\n`;
+      mensajeConfirmacion += `Unidad Habitacional los Héroes Chalco\n`;
+      mensajeConfirmacion += `Mz 17 Lt 17 planta baja el cupido\n`;
+      mensajeConfirmacion += `C.P 56644 (enfrente glorieta el oasis)\n\n`;
+      mensajeConfirmacion += `¡Te esperamos! 🍽️\n\n`;
+    }
+    
+    mensajeConfirmacion += `Escribe *hola* para hacer otro pedido.`;
+    
+    await whatsappService.sendTextMessage(phoneNumber, mensajeConfirmacion);
 
     // Enviar notificación al restaurante
-    const numeroRestaurante = '+5213349420820';
+    const numeroRestaurante = '+5215519060013';
     const ahora = new Date();
     const hora = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
     
