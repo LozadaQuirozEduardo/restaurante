@@ -12,6 +12,9 @@ const sessions = new Map();
 // Tiempo de expiración de sesión (15 minutos)
 const SESSION_TIMEOUT = 15 * 60 * 1000;
 
+// Número de administrador autorizado
+const ADMIN_PHONE = '+5215519060013';
+
 /**
  * Obtener o crear sesión de usuario
  */
@@ -79,6 +82,19 @@ async function handleMessage(from, message, messageId) {
       return;
     }
 
+    // Comandos de administrador
+    if (from === ADMIN_PHONE) {
+      if (textLower === 'admin' || textLower === 'gestionar' || textLower === 'pedidos') {
+        await handleAdminMenu(from);
+        return;
+      }
+
+      if (textLower.startsWith('estado ')) {
+        await handleCambiarEstado(from, textLower);
+        return;
+      }
+    }
+
     // Procesar según el paso actual de la conversación
     switch (session.step) {
       case 'inicio':
@@ -131,6 +147,18 @@ async function handleMessage(from, message, messageId) {
 
       case 'confirmar_pedido':
         await handleConfirmarPedido(from, textLower);
+        break;
+
+      case 'admin_menu':
+        await handleAdminMenuOption(from, textLower);
+        break;
+
+      case 'admin_ver_pedido':
+        await handleAdminVerPedido(from, message);
+        break;
+
+      case 'admin_cambiar_estado':
+        await handleAdminConfirmarEstado(from, textLower);
         break;
 
       default:
@@ -782,6 +810,354 @@ async function procesarPedido(phoneNumber) {
       'Escribe *hola* para volver al inicio.'
     );
     clearSession(phoneNumber);
+  }
+}
+
+/**
+ * Menú de administrador
+ */
+async function handleAdminMenu(from) {
+  try {
+    const pedidosPendientes = await supabaseService.getPedidosPendientes();
+    
+    let mensaje = '🔐 *PANEL DE ADMINISTRADOR*\n\n';
+    mensaje += `📊 Pedidos pendientes: *${pedidosPendientes.length}*\n\n`;
+    mensaje += '*Comandos disponibles:*\n\n';
+    mensaje += '1️⃣ Ver pedidos pendientes\n';
+    mensaje += '2️⃣ Ver todos los pedidos de hoy\n';
+    mensaje += '3️⃣ Cambiar estado de pedido\n\n';
+    mensaje += '_Escribe el número de la opción_';
+
+    await whatsappService.sendTextMessage(from, mensaje);
+    updateSession(from, { step: 'admin_menu' });
+  } catch (error) {
+    console.error('Error en menú admin:', error);
+    await whatsappService.sendTextMessage(from, '❌ Error al cargar el menú de administrador');
+  }
+}
+
+/**
+ * Manejar opción del menú de administrador
+ */
+async function handleAdminMenuOption(from, option) {
+  try {
+    switch (option) {
+      case '1':
+        await mostrarPedidosPendientes(from);
+        break;
+      case '2':
+        await mostrarPedidosHoy(from);
+        break;
+      case '3':
+        await iniciarCambioEstado(from);
+        break;
+      default:
+        await whatsappService.sendTextMessage(from, 
+          '❌ Opción inválida. Escribe *admin* para ver el menú nuevamente.');
+        clearSession(from);
+    }
+  } catch (error) {
+    console.error('Error al manejar opción admin:', error);
+  }
+}
+
+/**
+ * Mostrar pedidos pendientes
+ */
+async function mostrarPedidosPendientes(from) {
+  try {
+    const pedidos = await supabaseService.getPedidosPendientes();
+    
+    if (pedidos.length === 0) {
+      await whatsappService.sendTextMessage(from, 
+        '✅ No hay pedidos pendientes.\n\nEscribe *admin* para volver al menú.');
+      clearSession(from);
+      return;
+    }
+
+    let mensaje = '📋 *PEDIDOS PENDIENTES*\n\n';
+    
+    for (const pedido of pedidos) {
+      const hora = new Date(pedido.created_at).toLocaleTimeString('es-MX', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'America/Mexico_City'
+      });
+      
+      mensaje += `━━━━━━━━━━━━━━━━\n`;
+      mensaje += `🆔 *Pedido #${pedido.id}*\n`;
+      mensaje += `👤 ${pedido.nombre_cliente}\n`;
+      mensaje += `📞 ${pedido.telefono}\n`;
+      mensaje += `💰 $${pedido.total.toFixed(2)} MXN\n`;
+      mensaje += `${pedido.tipo_entrega === 'delivery' ? '🚚 Delivery' : '🏪 Recoger'}\n`;
+      mensaje += `⏰ ${hora}\n`;
+    }
+    
+    mensaje += `\n━━━━━━━━━━━━━━━━\n\n`;
+    mensaje += '_Para cambiar el estado de un pedido:_\n';
+    mensaje += '*estado [ID] [nuevo_estado]*\n\n';
+    mensaje += 'Ejemplo: estado 15 completado\n\n';
+    mensaje += 'Estados: *completado*, *cancelado*, *pendiente*';
+
+    await whatsappService.sendTextMessage(from, mensaje);
+    clearSession(from);
+  } catch (error) {
+    console.error('Error al mostrar pedidos pendientes:', error);
+    await whatsappService.sendTextMessage(from, '❌ Error al cargar pedidos pendientes');
+  }
+}
+
+/**
+ * Mostrar pedidos de hoy
+ */
+async function mostrarPedidosHoy(from) {
+  try {
+    const pedidos = await supabaseService.getPedidosHoy();
+    
+    if (pedidos.length === 0) {
+      await whatsappService.sendTextMessage(from, 
+        '📭 No hay pedidos hoy.\n\nEscribe *admin* para volver al menú.');
+      clearSession(from);
+      return;
+    }
+
+    // Contar por estado
+    const pendientes = pedidos.filter(p => p.estado === 'pendiente').length;
+    const completados = pedidos.filter(p => p.estado === 'completado').length;
+    const cancelados = pedidos.filter(p => p.estado === 'cancelado').length;
+    const totalVentas = pedidos
+      .filter(p => p.estado === 'completado')
+      .reduce((sum, p) => sum + p.total, 0);
+
+    let mensaje = '📊 *RESUMEN DEL DÍA*\n\n';
+    mensaje += `📦 Total de pedidos: *${pedidos.length}*\n\n`;
+    mensaje += `⏳ Pendientes: ${pendientes}\n`;
+    mensaje += `✅ Completados: ${completados}\n`;
+    mensaje += `❌ Cancelados: ${cancelados}\n\n`;
+    mensaje += `💰 Ventas: *$${totalVentas.toFixed(2)} MXN*\n\n`;
+    mensaje += '━━━━━━━━━━━━━━━━\n';
+    mensaje += '*ÚLTIMOS PEDIDOS:*\n\n';
+    
+    // Mostrar últimos 5 pedidos
+    const ultimos = pedidos.slice(0, 5);
+    for (const pedido of ultimos) {
+      const hora = new Date(pedido.created_at).toLocaleTimeString('es-MX', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'America/Mexico_City'
+      });
+      
+      const estadoEmoji = {
+        'pendiente': '⏳',
+        'completado': '✅',
+        'cancelado': '❌'
+      };
+      
+      mensaje += `${estadoEmoji[pedido.estado]} *#${pedido.id}* - ${pedido.nombre_cliente} - $${pedido.total.toFixed(2)} - ${hora}\n`;
+    }
+    
+    mensaje += '\n_Escribe *admin* para volver al menú_';
+
+    await whatsappService.sendTextMessage(from, mensaje);
+    clearSession(from);
+  } catch (error) {
+    console.error('Error al mostrar pedidos de hoy:', error);
+    await whatsappService.sendTextMessage(from, '❌ Error al cargar pedidos de hoy');
+  }
+}
+
+/**
+ * Iniciar cambio de estado
+ */
+async function iniciarCambioEstado(from) {
+  await whatsappService.sendTextMessage(from, 
+    '🔄 *CAMBIAR ESTADO DE PEDIDO*\n\n' +
+    'Escribe: *estado [ID] [nuevo_estado]*\n\n' +
+    '*Ejemplo:*\n' +
+    'estado 15 completado\n\n' +
+    '*Estados disponibles:*\n' +
+    '• completado\n' +
+    '• cancelado\n' +
+    '• pendiente\n\n' +
+    '_Escribe *cancelar* para salir_'
+  );
+  clearSession(from);
+}
+
+/**
+ * Cambiar estado de pedido
+ */
+async function handleCambiarEstado(from, message) {
+  try {
+    // Formato: estado 15 completado
+    const partes = message.split(' ');
+    
+    if (partes.length !== 3) {
+      await whatsappService.sendTextMessage(from, 
+        '❌ Formato incorrecto.\n\n' +
+        'Usa: *estado [ID] [nuevo_estado]*\n' +
+        'Ejemplo: estado 15 completado'
+      );
+      return;
+    }
+
+    const pedidoId = parseInt(partes[1]);
+    const nuevoEstado = partes[2].toLowerCase();
+
+    if (isNaN(pedidoId)) {
+      await whatsappService.sendTextMessage(from, '❌ El ID del pedido debe ser un número');
+      return;
+    }
+
+    if (!['completado', 'cancelado', 'pendiente'].includes(nuevoEstado)) {
+      await whatsappService.sendTextMessage(from, 
+        '❌ Estado inválido.\n\n' +
+        '*Estados disponibles:*\n' +
+        '• completado\n' +
+        '• cancelado\n' +
+        '• pendiente'
+      );
+      return;
+    }
+
+    // Obtener información del pedido
+    const pedido = await supabaseService.getPedidoById(pedidoId);
+    
+    if (!pedido) {
+      await whatsappService.sendTextMessage(from, `❌ No se encontró el pedido #${pedidoId}`);
+      return;
+    }
+
+    // Mostrar confirmación
+    const estadoEmoji = {
+      'completado': '✅',
+      'cancelado': '❌',
+      'pendiente': '⏳'
+    };
+
+    let mensaje = '🔄 *CONFIRMAR CAMBIO DE ESTADO*\n\n';
+    mensaje += `🆔 Pedido: *#${pedido.id}*\n`;
+    mensaje += `👤 Cliente: ${pedido.nombre_cliente}\n`;
+    mensaje += `💰 Total: $${pedido.total.toFixed(2)} MXN\n\n`;
+    mensaje += `📊 Estado actual: ${pedido.estado}\n`;
+    mensaje += `📊 Nuevo estado: ${estadoEmoji[nuevoEstado]} *${nuevoEstado}*\n\n`;
+    mensaje += '¿Confirmar cambio?\n\n';
+    mensaje += '1️⃣ Sí, cambiar\n';
+    mensaje += '2️⃣ No, cancelar';
+
+    await whatsappService.sendTextMessage(from, mensaje);
+    
+    updateSession(from, { 
+      step: 'admin_cambiar_estado',
+      data: { pedidoId, nuevoEstado, pedido }
+    });
+
+  } catch (error) {
+    console.error('Error al cambiar estado:', error);
+    await whatsappService.sendTextMessage(from, '❌ Error al procesar el cambio de estado');
+  }
+}
+
+/**
+ * Confirmar cambio de estado
+ */
+async function handleAdminConfirmarEstado(from, option) {
+  const session = getSession(from);
+  
+  if (option === '1') {
+    try {
+      const { pedidoId, nuevoEstado, pedido } = session.data;
+      
+      // Actualizar estado en la base de datos
+      const resultado = await supabaseService.actualizarEstadoPedido(pedidoId, nuevoEstado);
+      
+      if (resultado) {
+        const estadoEmoji = {
+          'completado': '✅',
+          'cancelado': '❌',
+          'pendiente': '⏳'
+        };
+
+        await whatsappService.sendTextMessage(from, 
+          `${estadoEmoji[nuevoEstado]} *Estado actualizado*\n\n` +
+          `Pedido #${pedidoId} ahora está: *${nuevoEstado}*\n\n` +
+          '_Escribe *admin* para volver al menú_'
+        );
+
+        // Notificar al cliente
+        let mensajeCliente = '';
+        if (nuevoEstado === 'completado') {
+          mensajeCliente = `✅ ¡Tu pedido #${pedidoId} ha sido completado!\n\n` +
+            `Gracias por tu preferencia. ¡Esperamos que lo disfrutes! 😋`;
+        } else if (nuevoEstado === 'cancelado') {
+          mensajeCliente = `❌ Tu pedido #${pedidoId} ha sido cancelado.\n\n` +
+            `Si tienes alguna duda, contáctanos.`;
+        }
+
+        if (mensajeCliente && pedido.telefono) {
+          await whatsappService.sendTextMessage(pedido.telefono, mensajeCliente);
+        }
+
+      } else {
+        await whatsappService.sendTextMessage(from, '❌ Error al actualizar el estado');
+      }
+      
+    } catch (error) {
+      console.error('Error al confirmar cambio de estado:', error);
+      await whatsappService.sendTextMessage(from, '❌ Error al actualizar el estado');
+    }
+  } else {
+    await whatsappService.sendTextMessage(from, 
+      '❌ Cambio cancelado\n\n_Escribe *admin* para volver al menú_');
+  }
+  
+  clearSession(from);
+}
+
+/**
+ * Ver detalle de un pedido (función auxiliar)
+ */
+async function handleAdminVerPedido(from, pedidoId) {
+  try {
+    const id = parseInt(pedidoId);
+    if (isNaN(id)) {
+      await whatsappService.sendTextMessage(from, '❌ ID inválido');
+      return;
+    }
+
+    const pedido = await supabaseService.getPedidoById(id);
+    
+    if (!pedido) {
+      await whatsappService.sendTextMessage(from, `❌ No se encontró el pedido #${id}`);
+      return;
+    }
+
+    let mensaje = `📦 *PEDIDO #${pedido.id}*\n\n`;
+    mensaje += `👤 *Cliente:* ${pedido.nombre_cliente}\n`;
+    mensaje += `📞 *Teléfono:* ${pedido.telefono}\n`;
+    mensaje += `📊 *Estado:* ${pedido.estado}\n`;
+    mensaje += `💰 *Total:* $${pedido.total.toFixed(2)} MXN\n`;
+    mensaje += `${pedido.tipo_entrega === 'delivery' ? '🚚' : '🏪'} *Entrega:* ${pedido.tipo_entrega}\n`;
+    
+    if (pedido.direccion_entrega) {
+      mensaje += `📍 *Dirección:* ${pedido.direccion_entrega}\n`;
+    }
+    
+    if (pedido.notas) {
+      mensaje += `📝 *Notas:* ${pedido.notas}\n`;
+    }
+
+    const hora = new Date(pedido.created_at).toLocaleString('es-MX', {
+      timeZone: 'America/Mexico_City'
+    });
+    mensaje += `⏰ *Fecha:* ${hora}`;
+
+    await whatsappService.sendTextMessage(from, mensaje);
+    clearSession(from);
+
+  } catch (error) {
+    console.error('Error al ver pedido:', error);
+    await whatsappService.sendTextMessage(from, '❌ Error al cargar el pedido');
   }
 }
 

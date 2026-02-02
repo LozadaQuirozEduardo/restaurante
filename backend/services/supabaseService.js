@@ -254,6 +254,79 @@ async function updateEstadoPedido(pedidoId, nuevoEstado) {
   }
 }
 
+/**
+ * Obtener pedidos pendientes
+ */
+async function getPedidosPendientes() {
+  try {
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('*')
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error al obtener pedidos pendientes:', error);
+    return [];
+  }
+}
+
+/**
+ * Obtener pedidos de hoy
+ */
+async function getPedidosHoy() {
+  try {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const hoyISO = hoy.toISOString();
+
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('*')
+      .gte('created_at', hoyISO)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error al obtener pedidos de hoy:', error);
+    return [];
+  }
+}
+
+/**
+ * Obtener un pedido por ID con todos sus detalles
+ */
+async function getPedidoById(pedidoId) {
+  try {
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select(`
+        *,
+        pedido_detalles (
+          *
+        )
+      `)
+      .eq('id', pedidoId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error al obtener pedido por ID:', error);
+    return null;
+  }
+}
+
+/**
+ * Actualizar estado de un pedido (alias para compatibilidad)
+ */
+async function actualizarEstadoPedido(pedidoId, nuevoEstado) {
+  return updateEstadoPedido(pedidoId, nuevoEstado);
+}
+
 module.exports = {
   supabase,
   getCategorias,
@@ -262,5 +335,9 @@ module.exports = {
   getOrCreateCliente,
   createPedido,
   getPedidos,
-  updateEstadoPedido
+  updateEstadoPedido,
+  getPedidosPendientes,
+  getPedidosHoy,
+  getPedidoById,
+  actualizarEstadoPedido
 };
