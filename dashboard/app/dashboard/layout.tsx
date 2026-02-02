@@ -15,14 +15,17 @@ export default function DashboardLayout({
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pendingOrders, setPendingOrders] = useState(0)
+  const [isOnline, setIsOnline] = useState(true)
 
   useEffect(() => {
     checkUser()
     fetchPendingOrders()
+    checkConnection()
     
     // Auto-refresh pedidos pendientes cada 30 segundos
     const interval = setInterval(() => {
       fetchPendingOrders()
+      checkConnection()
     }, 30000)
     
     return () => clearInterval(interval)
@@ -45,6 +48,15 @@ export default function DashboardLayout({
       .eq('estado', 'pendiente')
     
     setPendingOrders(count || 0)
+  }
+
+  async function checkConnection() {
+    try {
+      const { error } = await supabase.from('pedidos').select('count', { count: 'exact', head: true }).limit(1)
+      setIsOnline(!error)
+    } catch {
+      setIsOnline(false)
+    }
   }
 
   async function handleLogout() {
@@ -73,7 +85,13 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-gray-50">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-orange-600">El Rinconcito</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-orange-600">El Rinconcito</h1>
+          <div className="flex items-center gap-1">
+            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
+            <span className="text-xs text-gray-500">{isOnline ? 'En línea' : 'Desconectado'}</span>
+          </div>
+        </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="p-2 rounded-lg hover:bg-gray-100 transition"
@@ -101,8 +119,12 @@ export default function DashboardLayout({
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } lg:translate-x-0`}>
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-center h-16 border-b border-gray-200">
+          <div className="flex items-center justify-between px-4 h-16 border-b border-gray-200">
             <h1 className="text-xl font-bold text-orange-600">El Rinconcito</h1>
+            <div className="hidden lg:flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
+              <span className="text-xs text-gray-500">{isOnline ? 'Online' : 'Offline'}</span>
+            </div>
           </div>
 
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
