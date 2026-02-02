@@ -727,7 +727,11 @@ async function procesarPedido(phoneNumber) {
     // Enviar notificación al restaurante
     const numeroRestaurante = '+5215519060013';
     const ahora = new Date();
-    const hora = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    const hora = ahora.toLocaleTimeString('es-MX', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      timeZone: 'America/Mexico_City'
+    });
     
     let notificacion = `🔔 *NUEVO PEDIDO #${pedido.id}*\n\n`;
     notificacion += `👤 *Cliente:* ${nombre}\n`;
