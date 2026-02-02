@@ -102,12 +102,12 @@ export default function PedidosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Pedidos</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Pedidos</h1>
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFiltro('todos')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               filtro === 'todos'
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -117,7 +117,7 @@ export default function PedidosPage() {
           </button>
           <button
             onClick={() => setFiltro('pendiente')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               filtro === 'pendiente'
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -127,7 +127,7 @@ export default function PedidosPage() {
           </button>
           <button
             onClick={() => setFiltro('completado')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               filtro === 'completado'
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -137,7 +137,7 @@ export default function PedidosPage() {
           </button>
           <button
             onClick={() => setFiltro('cancelado')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               filtro === 'cancelado'
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -157,8 +157,11 @@ export default function PedidosPage() {
           <p className="text-gray-500 text-lg">No hay pedidos para mostrar</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
+        <>
+          {/* Vista Desktop - Tabla */}
+          <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -220,7 +223,44 @@ export default function PedidosPage() {
               ))}
             </tbody>
           </table>
-        </div>
+            </div>
+          </div>
+
+          {/* Vista Mobile - Cards */}
+          <div className="md:hidden space-y-4">
+            {pedidos.map((pedido) => (
+              <div 
+                key={pedido.id} 
+                className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+                onClick={() => setSelectedPedido(pedido)}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <p className="font-bold text-gray-900">Pedido #{pedido.id}</p>
+                    <p className="text-sm text-gray-600">{pedido.nombre_cliente}</p>
+                    <p className="text-xs text-gray-500">{pedido.telefono}</p>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(pedido.estado)}`}>
+                    {pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1)}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">
+                    {format(new Date(pedido.created_at), "d MMM, HH:mm", { locale: es })}
+                  </span>
+                  <span className="font-bold text-orange-600">
+                    ${pedido.total.toFixed(2)}
+                  </span>
+                </div>
+                
+                <div className="mt-2 text-xs text-gray-500">
+                  {pedido.tipo_entrega === 'delivery' ? '🚚 Delivery' : '🏪 Recoger'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Modal de detalles */}
