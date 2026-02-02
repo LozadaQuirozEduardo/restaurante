@@ -30,3 +30,6 @@ Thumbs.db
 temp/
 tmp/
 *.tmp
+
+# Local Netlify folder
+.netlify
