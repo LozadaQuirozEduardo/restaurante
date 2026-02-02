@@ -142,12 +142,12 @@ export default function ProductosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Productos</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Productos</h1>
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFiltroCategoria(null)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
               filtroCategoria === null
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -159,7 +159,7 @@ export default function ProductosPage() {
             <button
               key={categoria.id}
               onClick={() => setFiltroCategoria(categoria.id)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
                 filtroCategoria === categoria.id
                   ? 'bg-orange-500 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -180,38 +180,38 @@ export default function ProductosPage() {
           <p className="text-gray-500 text-lg">No hay productos para mostrar</p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {filtroCategoria ? (
             <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="bg-orange-500 px-6 py-3">
-                <h2 className="text-xl font-bold text-white">
+              <div className="bg-orange-500 px-4 py-2">
+                <h2 className="text-lg font-bold text-white">
                   {categorias.find(c => c.id === filtroCategoria)?.nombre}
                 </h2>
               </div>
               <div className="divide-y divide-gray-200">
                 {productos.map((producto) => (
-                  <div key={producto.id} className="p-6 hover:bg-gray-50 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">{producto.nombre}</h3>
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                  <div key={producto.id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-base font-semibold text-gray-900 truncate">{producto.nombre}</h3>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
                             producto.disponible
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
                           }`}>
                             {producto.disponible ? 'Disponible' : 'No disponible'}
                           </span>
                         </div>
-                        <p className="text-gray-600 text-sm mb-2">{producto.descripcion}</p>
-                        <p className="text-2xl font-bold text-orange-600">
-                          ${producto.precio % 1 === 0 ? producto.precio.toFixed(0) : producto.precio.toFixed(2)} MXN
+                        <p className="text-gray-600 text-sm mb-1.5">{producto.descripcion}</p>
+                        <p className="text-xl font-bold text-orange-600">
+                          ${producto.precio % 1 === 0 ? producto.precio.toFixed(0) : producto.precio.toFixed(2)} <span className="text-sm">MXN</span>
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0">
                         <button
                           onClick={() => toggleDisponibilidad(producto)}
-                          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
                             producto.disponible
                               ? 'bg-red-500 text-white hover:bg-red-600'
                               : 'bg-green-500 text-white hover:bg-green-600'
@@ -221,7 +221,7 @@ export default function ProductosPage() {
                         </button>
                         <button
                           onClick={() => abrirEdicion(producto)}
-                          className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
+                          className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
                         >
                           Editar
                         </button>
@@ -234,33 +234,33 @@ export default function ProductosPage() {
           ) : (
             productosPorCategoria.map(({ categoria, productos }) => (
               <div key={categoria.id} className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="bg-orange-500 px-6 py-3">
-                  <h2 className="text-xl font-bold text-white">{categoria.nombre}</h2>
+                <div className="bg-orange-500 px-4 py-2">
+                  <h2 className="text-lg font-bold text-white">{categoria.nombre}</h2>
                 </div>
                 <div className="divide-y divide-gray-200">
                   {productos.map((producto) => (
-                    <div key={producto.id} className="p-6 hover:bg-gray-50 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-900">{producto.nombre}</h3>
-                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                    <div key={producto.id} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-base font-semibold text-gray-900 truncate">{producto.nombre}</h3>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
                               producto.disponible
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
                             }`}>
                               {producto.disponible ? 'Disponible' : 'No disponible'}
                             </span>
                           </div>
-                          <p className="text-gray-600 text-sm mb-2">{producto.descripcion}</p>
-                          <p className="text-2xl font-bold text-orange-600">
-                            ${producto.precio % 1 === 0 ? producto.precio.toFixed(0) : producto.precio.toFixed(2)} MXN
+                          <p className="text-gray-600 text-sm mb-1.5">{producto.descripcion}</p>
+                          <p className="text-xl font-bold text-orange-600">
+                            ${producto.precio % 1 === 0 ? producto.precio.toFixed(0) : producto.precio.toFixed(2)} <span className="text-sm">MXN</span>
                           </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-shrink-0">
                           <button
                             onClick={() => toggleDisponibilidad(producto)}
-                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                            className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
                               producto.disponible
                                 ? 'bg-red-500 text-white hover:bg-red-600'
                                 : 'bg-green-500 text-white hover:bg-green-600'
@@ -270,7 +270,7 @@ export default function ProductosPage() {
                           </button>
                           <button
                             onClick={() => abrirEdicion(producto)}
-                            className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
+                            className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
                           >
                             Editar
                           </button>
