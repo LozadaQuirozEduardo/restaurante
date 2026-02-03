@@ -69,6 +69,27 @@ async function handleMessage(from, message, messageId) {
 
     console.log(`📱 Mensaje de ${from}: "${message}" (Paso: ${session.step})`);
 
+    // BLOQUEAR PEDIDOS DESDE EL NÚMERO ADMINISTRATIVO
+    const ADMIN_NUMBER = '5519060013';
+    
+    if (from === ADMIN_NUMBER) {
+      // Solo permitir comandos administrativos
+      if (textLower === 'admin' || textLower === 'gestionar' || textLower === 'pedidos' || 
+          textLower === 'pendientes' || textLower.includes('completar') || 
+          textLower.includes('cancelar') || textLower.startsWith('estado ')) {
+        // Permitir estos comandos
+      } else {
+        await whatsappService.sendTextMessage(from,
+          '⚠️ Este número es administrativo.\n\n' +
+          'Solo puedes:\n' +
+          '• Ver pedidos pendientes\n' +
+          '• Completar pedidos (completar #6)\n' +
+          '• Cancelar pedidos (cancelar #6)\n\n' +
+          'Para hacer pedidos, usa otro número de WhatsApp.');
+        return;
+      }
+    }
+
     // Comandos globales que funcionan en cualquier momento
     if (textLower === 'hola' || textLower === 'inicio' || textLower === 'empezar') {
       await sendWelcomeMessage(from);
@@ -79,6 +100,14 @@ async function handleMessage(from, message, messageId) {
       await whatsappService.sendTextMessage(from, 
         '❌ Operación cancelada.\n\nEscribe *hola* para volver al menú principal.');
       clearSession(from);
+      return;
+    }
+
+    // Detectar si el cliente quiere cancelar un pedido
+    const cancelPedidoMatch = textLower.match(/cancelar[\s]*(pedido)?[\s]*#?(\d+)/);
+    if (cancelPedidoMatch && from !== ADMIN_PHONE) {
+      const pedidoId = cancelPedidoMatch[2];
+      await cancelarPedidoCliente(from, pedidoId);
       return;
     }
 
@@ -185,7 +214,8 @@ async function sendWelcomeMessage(phoneNumber) {
 
 📋 *menú* - Ver productos disponibles
 🛒 *pedir* - Hacer un pedido
-📞 *contacto* - Información de contacto
+� *mis pedidos* - Ver mis pedidos recientes
+�📞 *contacto* - Información de contacto
 ℹ️ *ayuda* - Ver comandos disponibles
 
 Escribe una opción para comenzar.`;
@@ -209,12 +239,16 @@ async function handleMenuPrincipal(phoneNumber, message) {
     await showCategorias(phoneNumber);
   } else if (message.includes('pedir') || message.includes('pedido') || message.includes('comprar') || message === '2') {
     await iniciarPedido(phoneNumber);
+  } else if (message.includes('mis pedidos') || message.includes('pedidos recientes')) {
+    await mostrarPedidosCliente(phoneNumber);
   } else if (message.includes('contacto')) {
     await whatsappService.sendTextMessage(phoneNumber, 
       `📞 *Información de Contacto*\n\n` +
       `📱 WhatsApp: Este número\n` +
       `⏰ Horario: Lunes a Domingo 10:00 - 22:00\n` +
-      `📍 Ubicación: [Tu dirección aquí]\n\n` +
+      `📍 Ubicación: Unidad Habitacional los Héroes Chalco\n` +
+      `   Mz 17 Lt 17 planta baja el cupido C.P 56644\n` +
+      `   (enfrente glorieta el oasis)\n\n` +
       `¿Necesitas algo más? Escribe *hola* para ver el menú.`
     );
   } else if (message.includes('ayuda') || message.includes('help')) {
@@ -222,6 +256,7 @@ async function handleMenuPrincipal(phoneNumber, message) {
       `ℹ️ *Comandos Disponibles:*\n\n` +
       `📋 *menú* - Ver todos los productos\n` +
       `🛒 *pedir* - Hacer un pedido\n` +
+      `📦 *mis pedidos* - Ver pedidos recientes\n` +
       `📞 *contacto* - Info de contacto\n` +
       `❌ *cancelar* - Cancelar operación actual\n` +
       `🏠 *hola* - Volver al inicio\n\n` +
@@ -1159,6 +1194,135 @@ async function handleAdminVerPedido(from, pedidoId) {
   } catch (error) {
     console.error('Error al ver pedido:', error);
     await whatsappService.sendTextMessage(from, '❌ Error al cargar el pedido');
+  }
+}
+
+/**
+ * Mostrar pedidos recientes del cliente y permitir cancelar (dentro de 20 min)
+ */
+async function mostrarPedidosCliente(phoneNumber) {
+  try {
+    // Obtener pedidos recientes del cliente
+    const { data: pedidos, error } = await supabase
+      .from('pedidos')
+      .select('*')
+      .eq('telefono', phoneNumber)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error || !pedidos || pedidos.length === 0) {
+      await whatsappService.sendTextMessage(phoneNumber,
+        '📦 No tienes pedidos registrados.\n\n' +
+        'Escribe *pedir* para hacer tu primer pedido.');
+      return;
+    }
+
+    let mensaje = `📋 *Tus Últimos Pedidos*\n\n`;
+
+    pedidos.forEach(pedido => {
+      const fecha = new Date(pedido.created_at);
+      const ahora = new Date();
+      const minutosTranscurridos = Math.floor((ahora - fecha) / 60000);
+      const puedeCancel = pedido.estado === 'pendiente' && minutosTranscurridos <= 20;
+
+      mensaje += `🔸 *Pedido #${pedido.id}*\n`;
+      mensaje += `   Estado: ${pedido.estado === 'pendiente' ? '⏳ Pendiente' : 
+                              pedido.estado === 'completado' ? '✅ Completado' : 
+                              '❌ Cancelado'}\n`;
+      mensaje += `   Total: $${pedido.total} MXN\n`;
+      mensaje += `   Hace ${minutosTranscurridos} min\n`;
+      
+      if (puedeCancel) {
+        mensaje += `   ⚠️ Puedes cancelar (${20 - minutosTranscurridos} min restantes)\n`;
+      }
+      
+      mensaje += `\n`;
+    });
+
+    mensaje += `\n💡 Para cancelar un pedido pendiente escribe:\n`;
+    mensaje += `"cancelar pedido #6"\n\n`;
+    mensaje += `⚠️ Solo puedes cancelar pedidos pendientes dentro de los primeros 20 minutos.`;
+
+    await whatsappService.sendTextMessage(phoneNumber, mensaje);
+
+  } catch (error) {
+    console.error('Error al mostrar pedidos del cliente:', error);
+    await whatsappService.sendTextMessage(phoneNumber,
+      '❌ Error al cargar tus pedidos. Intenta nuevamente.');
+  }
+}
+
+/**
+ * Cancelar pedido por parte del cliente (solo dentro de 20 minutos)
+ */
+async function cancelarPedidoCliente(phoneNumber, pedidoId) {
+  try {
+    // Buscar el pedido
+    const { data: pedido, error: fetchError } = await supabase
+      .from('pedidos')
+      .select('*')
+      .eq('id', pedidoId)
+      .eq('telefono', phoneNumber)
+      .single();
+
+    if (fetchError || !pedido) {
+      await whatsappService.sendTextMessage(phoneNumber,
+        `❌ No se encontró el pedido #${pedidoId} o no te pertenece.`);
+      return;
+    }
+
+    // Verificar si ya está cancelado o completado
+    if (pedido.estado === 'cancelado') {
+      await whatsappService.sendTextMessage(phoneNumber,
+        `ℹ️ El pedido #${pedidoId} ya está cancelado.`);
+      return;
+    }
+
+    if (pedido.estado === 'completado') {
+      await whatsappService.sendTextMessage(phoneNumber,
+        `❌ No puedes cancelar el pedido #${pedidoId} porque ya está completado.`);
+      return;
+    }
+
+    // Verificar el tiempo transcurrido (20 minutos = 1200000 ms)
+    const fechaPedido = new Date(pedido.created_at);
+    const ahora = new Date();
+    const minutosTranscurridos = Math.floor((ahora - fechaPedido) / 60000);
+
+    if (minutosTranscurridos > 20) {
+      await whatsappService.sendTextMessage(phoneNumber,
+        `⏰ Lo siento, ya pasaron ${minutosTranscurridos} minutos desde que hiciste el pedido #${pedidoId}.\n\n` +
+        `Solo puedes cancelar pedidos dentro de los primeros 20 minutos.\n\n` +
+        `Si tienes algún problema, por favor contacta al restaurante.`);
+      return;
+    }
+
+    // Cancelar el pedido
+    const { error: updateError } = await supabase
+      .from('pedidos')
+      .update({ estado: 'cancelado' })
+      .eq('id', pedidoId);
+
+    if (updateError) {
+      console.error('Error al cancelar pedido del cliente:', updateError);
+      await whatsappService.sendTextMessage(phoneNumber,
+        `❌ Error al cancelar el pedido #${pedidoId}. Intenta nuevamente.`);
+      return;
+    }
+
+    // Enviar confirmación
+    await whatsappService.sendTextMessage(phoneNumber,
+      `✅ *Pedido #${pedidoId} cancelado exitosamente*\n\n` +
+      `Cliente: ${pedido.nombre_cliente}\n` +
+      `Total: $${pedido.total} MXN\n\n` +
+      `Tu pedido ha sido cancelado. Esperamos verte pronto! 😊`);
+
+    console.log(`✅ Pedido #${pedidoId} cancelado por el cliente ${phoneNumber} (${minutosTranscurridos} min)`);
+
+  } catch (error) {
+    console.error('Error al procesar cancelación del cliente:', error);
+    await whatsappService.sendTextMessage(phoneNumber,
+      `❌ Error al procesar la cancelación. Por favor intenta nuevamente.`);
   }
 }
 
