@@ -17,6 +17,9 @@ export default function DashboardLayout({
   const [pendingOrders, setPendingOrders] = useState(0)
   const [isOnline, setIsOnline] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [showSearchResults, setShowSearchResults] = useState(false)
 
   useEffect(() => {
     // Cargar preferencia de modo oscuro
@@ -81,6 +84,60 @@ export default function DashboardLayout({
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
+    }
+  }
+
+  async function handleSearch(term: string) {
+    setSearchTerm(term)
+    
+    if (term.length < 2) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+
+    try {
+      const results: any[] = []
+
+      // Buscar pedidos por ID o nombre de cliente
+      const { data: pedidos } = await supabase
+        .from('pedidos')
+        .select('id, nombre_cliente, total, estado, created_at')
+        .or(`id.eq.${parseInt(term) || 0},nombre_cliente.ilike.%${term}%`)
+        .limit(5)
+
+      if (pedidos) {
+        pedidos.forEach(p => results.push({ type: 'pedido', data: p }))
+      }
+
+      // Buscar productos
+      const { data: productos } = await supabase
+        .from('productos')
+        .select('id, nombre, precio, disponible')
+        .ilike('nombre', `%${term}%`)
+        .limit(5)
+
+      if (productos) {
+        productos.forEach(p => results.push({ type: 'producto', data: p }))
+      }
+
+      // Buscar clientes por teléfono o nombre
+      const { data: clientes } = await supabase
+        .from('pedidos')
+        .select('nombre_cliente, telefono')
+        .or(`nombre_cliente.ilike.%${term}%,telefono.ilike.%${term}%`)
+        .limit(5)
+
+      if (clientes) {
+        // Eliminar duplicados
+        const uniqueClients = Array.from(new Map(clientes.map(c => [c.telefono, c])).values())
+        uniqueClients.forEach(c => results.push({ type: 'cliente', data: c }))
+      }
+
+      setSearchResults(results)
+      setShowSearchResults(results.length > 0)
+    } catch (error) {
+      console.error('Error en búsqueda:', error)
     }
   }
 
@@ -202,6 +259,87 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <div className="lg:ml-64 pt-16 lg:pt-0">
+        {/* Barra de búsqueda global */}
+        <div className="sticky top-16 lg:top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-8 py-4">
+          <div className="relative max-w-2xl">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+                placeholder="Buscar pedidos, productos, clientes..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            
+            {/* Resultados de búsqueda */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="absolute top-full mt-2 w-full bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 max-h-96 overflow-y-auto z-50">
+                {searchResults.map((result, index) => (
+                  <div key={index} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-600 border-b border-gray-100 dark:border-gray-600 last:border-b-0">
+                    {result.type === 'pedido' && (
+                      <Link
+                        href={`/dashboard/pedidos`}
+                        onClick={() => { setShowSearchResults(false); setSearchTerm('') }}
+                        className="block"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">📦</span>
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">Pedido #{result.data.id}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{result.data.nombre_cliente} - ${result.data.total} MXN</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              result.data.estado === 'completado' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                              result.data.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                              'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                            }`}>
+                              {result.data.estado}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    )}
+                    {result.type === 'producto' && (
+                      <Link
+                        href={`/dashboard/productos`}
+                        onClick={() => { setShowSearchResults(false); setSearchTerm('') }}
+                        className="block"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">🍽️</span>
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">{result.data.nombre}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">${result.data.precio} MXN</p>
+                          </div>
+                        </div>
+                      </Link>
+                    )}
+                    {result.type === 'cliente' && (
+                      <Link
+                        href={`/dashboard/clientes`}
+                        onClick={() => { setShowSearchResults(false); setSearchTerm('') }}
+                        className="block"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">👤</span>
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">{result.data.nombre_cliente}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{result.data.telefono}</p>
+                          </div>
+                        </div>
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        
         <div className="p-4 md:p-8">
           {children}
         </div>

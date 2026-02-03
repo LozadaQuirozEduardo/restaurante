@@ -5,6 +5,10 @@ import { supabase } from '@/lib/supabase'
 import { format, startOfDay, startOfWeek, startOfMonth, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 
 interface Stats {
   today: number
@@ -40,6 +44,11 @@ interface TopClient {
   total: number
 }
 
+interface LowStockProduct {
+  nombre: string
+  vendidos: number
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({
     today: 0,
@@ -53,8 +62,12 @@ export default function DashboardPage() {
   const [topProducts, setTopProducts] = useState<ProductSale[]>([])
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
   const [topClients, setTopClients] = useState<TopClient[]>([])
+  const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([])
   const [previousPendingCount, setPreviousPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
+  const [startDate, endDate] = dateRange
+  const [showDatePicker, setShowDatePicker] = useState(false)
 
   // Función para reproducir sonido de notificación
   const playNotificationSound = () => {
@@ -82,6 +95,7 @@ export default function DashboardPage() {
     fetchTopProducts()
     fetchRecentOrders()
     fetchTopClients()
+    fetchLowStockProducts()
     
     // Auto-refresh cada 30 segundos
     const interval = setInterval(() => {
@@ -90,6 +104,7 @@ export default function DashboardPage() {
       fetchTopProducts()
       fetchRecentOrders()
       fetchTopClients()
+      fetchLowStockProducts()
     }, 30000)
     
     return () => clearInterval(interval)
@@ -285,6 +300,40 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchLowStockProducts() {
+    try {
+      // Obtener productos más vendidos en los últimos 7 días
+      const sevenDaysAgo = subDays(new Date(), 7).toISOString()
+      
+      const { data } = await supabase
+        .from('pedido_detalles')
+        .select('producto_nombre, cantidad, pedidos!inner(estado, created_at)')
+        .gte('pedidos.created_at', sevenDaysAgo)
+
+      if (!data) return
+
+      // Filtrar solo pedidos completados y agrupar por producto
+      const productMap = new Map<string, number>()
+      data.forEach((item: any) => {
+        if (item.pedidos.estado === 'completado') {
+          const current = productMap.get(item.producto_nombre) || 0
+          productMap.set(item.producto_nombre, current + item.cantidad)
+        }
+      })
+
+      // Productos con más de 10 ventas en la semana se consideran de alto movimiento
+      const highDemandProducts = Array.from(productMap.entries())
+        .filter(([_, count]) => count >= 10)
+        .map(([name, count]) => ({ nombre: name, vendidos: count }))
+        .sort((a, b) => b.vendidos - a.vendidos)
+        .slice(0, 5)
+
+      setLowStockProducts(highDemandProducts)
+    } catch (error) {
+      console.error('Error fetching low stock products:', error)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -304,25 +353,219 @@ export default function DashboardPage() {
 
   const COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b']
 
+  // Función para exportar a PDF
+  const exportToPDF = async () => {
+    const doc = new jsPDF()
+    
+    // Título
+    doc.setFontSize(20)
+    doc.setTextColor(249, 115, 22) // Orange
+    doc.text('El Rinconcito - Reporte de Ventas', 14, 20)
+    
+    // Fecha del reporte
+    doc.setFontSize(10)
+    doc.setTextColor(100)
+    doc.text(`Generado: ${format(new Date(), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: es })}`, 14, 28)
+    
+    // Resumen de ventas
+    doc.setFontSize(14)
+    doc.setTextColor(0)
+    doc.text('Resumen de Ventas', 14, 40)
+    
+    const summaryData = [
+      ['Periodo', 'Monto'],
+      ['Hoy', `$${stats.today % 1 === 0 ? stats.today.toFixed(0) : stats.today.toFixed(2)} MXN`],
+      ['Esta Semana', `$${stats.week % 1 === 0 ? stats.week.toFixed(0) : stats.week.toFixed(2)} MXN`],
+      ['Este Mes', `$${stats.month % 1 === 0 ? stats.month.toFixed(0) : stats.month.toFixed(2)} MXN`],
+      ['Ticket Promedio', `$${stats.averageTicket % 1 === 0 ? stats.averageTicket.toFixed(0) : stats.averageTicket.toFixed(2)} MXN`],
+    ]
+    
+    ;(doc as any).autoTable({
+      startY: 45,
+      head: [summaryData[0]],
+      body: summaryData.slice(1),
+      theme: 'grid',
+      headStyles: { fillColor: [249, 115, 22] }
+    })
+    
+    // Ventas últimos 7 días
+    doc.setFontSize(14)
+    doc.text('Ventas Últimos 7 Días', 14, (doc as any).lastAutoTable.finalY + 15)
+    
+    const salesData = dailySales.map(sale => [
+      sale.date,
+      `$${sale.total % 1 === 0 ? sale.total.toFixed(0) : sale.total.toFixed(2)} MXN`
+    ])
+    
+    ;(doc as any).autoTable({
+      startY: (doc as any).lastAutoTable.finalY + 20,
+      head: [['Fecha', 'Total']],
+      body: salesData,
+      theme: 'striped',
+      headStyles: { fillColor: [249, 115, 22] }
+    })
+    
+    // Top productos
+    doc.setFontSize(14)
+    doc.text('Top 5 Productos Más Vendidos', 14, (doc as any).lastAutoTable.finalY + 15)
+    
+    const productsData = topProducts.map((product, index) => [
+      `${index + 1}`,
+      product.name,
+      `${product.count} unidades`
+    ])
+    
+    ;(doc as any).autoTable({
+      startY: (doc as any).lastAutoTable.finalY + 20,
+      head: [['#', 'Producto', 'Cantidad']],
+      body: productsData,
+      theme: 'striped',
+      headStyles: { fillColor: [249, 115, 22] }
+    })
+    
+    // Top clientes
+    if (topClients.length > 0) {
+      doc.addPage()
+      doc.setFontSize(14)
+      doc.text('Top 5 Clientes VIP', 14, 20)
+      
+      const clientsData = topClients.map((client, index) => [
+        `${index + 1}`,
+        client.nombre,
+        client.telefono,
+        `${client.pedidos} pedidos`,
+        `$${client.total % 1 === 0 ? client.total.toFixed(0) : client.total.toFixed(2)} MXN`
+      ])
+      
+      ;(doc as any).autoTable({
+        startY: 25,
+        head: [['#', 'Cliente', 'Teléfono', 'Pedidos', 'Total Gastado']],
+        body: clientsData,
+        theme: 'striped',
+        headStyles: { fillColor: [249, 115, 22] }
+      })
+    }
+    
+    // Estadísticas generales
+    doc.setFontSize(14)
+    doc.text('Estadísticas Generales', 14, (doc as any).lastAutoTable.finalY + 15)
+    
+    const statsData = [
+      ['Total de Pedidos', stats.totalOrders.toString()],
+      ['Pedidos Pendientes', stats.pendingOrders.toString()],
+    ]
+    
+    ;(doc as any).autoTable({
+      startY: (doc as any).lastAutoTable.finalY + 20,
+      head: [['Métrica', 'Valor']],
+      body: statsData,
+      theme: 'grid',
+      headStyles: { fillColor: [249, 115, 22] }
+    })
+    
+    // Guardar PDF
+    doc.save(`Reporte_Ventas_${format(new Date(), 'yyyy-MM-dd')}.pdf`)
+  }
+
   return (
     <div className="space-y-6">
-      <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Resumen de ventas y pedidos</p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Resumen de ventas y pedidos</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors shadow-sm"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Filtrar Fechas
+          </button>
+          <button
+            onClick={exportToPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors shadow-sm"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar PDF
+          </button>
+        </div>
       </div>
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Seleccionar Periodo</h3>
+            <button
+              onClick={() => setShowDatePicker(false)}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div>
+              <DatePicker
+                selectsRange={true}
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(update: [Date | null, Date | null]) => {
+                  setDateRange(update)
+                }}
+                locale={es}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Selecciona rango de fechas"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                isClearable={true}
+              />
+            </div>
+            {startDate && endDate && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    // Aquí puedes agregar lógica para filtrar los datos
+                    setShowDatePicker(false)
+                  }}
+                  className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium"
+                >
+                  Aplicar
+                </button>
+                <button
+                  onClick={() => {
+                    setDateRange([null, null])
+                  }}
+                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium"
+                >
+                  Limpiar
+                </button>
+              </div>
+            )}
+          </div>
+          {startDate && endDate && (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Periodo seleccionado: {format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
         {statCards.map((card, index) => (
           <div 
             key={card.title} 
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow duration-300"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow duration-300 overflow-hidden"
             style={{ animationDelay: `${index * 100}ms` }}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
                 <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">{card.title}</p>
-                <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p>
+                <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate">{card.value}</p>
                 {card.trend && (
                   <div className="flex items-center mt-1">
                     <span className={`text-xs font-semibold ${card.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -332,7 +575,7 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              <div className={`${card.color} w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-xl md:text-2xl flex-shrink-0 ml-2`}>
+              <div className={`${card.color} w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-lg md:text-xl flex-shrink-0`}>
                 {card.icon}
               </div>
             </div>
@@ -342,6 +585,32 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Alertas de Stock Bajo / Alta Demanda */}
+        {lowStockProducts.length > 0 && (
+          <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl shadow-sm p-4 md:p-6 border-2 border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-2xl">⚠️</span>
+              <h2 className="text-lg md:text-xl font-bold text-red-700 dark:text-red-400">Productos de Alta Demanda</h2>
+            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+              Estos productos se vendieron mucho esta semana. Verifica el inventario:
+            </p>
+            <div className="space-y-3">
+              {lowStockProducts.map((product, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔥</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{product.nombre}</span>
+                  </div>
+                  <span className="px-3 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-full text-sm font-bold">
+                    {product.vendidos} vendidos
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Ventas últimos 7 días */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
           <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-4">Ventas Últimos 7 Días</h2>
