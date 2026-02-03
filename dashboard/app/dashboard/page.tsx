@@ -307,8 +307,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Resumen de ventas y pedidos</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Resumen de ventas y pedidos</p>
       </div>
 
       {/* Stats Cards */}
@@ -316,19 +316,19 @@ export default function DashboardPage() {
         {statCards.map((card, index) => (
           <div 
             key={card.title} 
-            className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow duration-300"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow duration-300"
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-xs md:text-sm text-gray-600 mb-1">{card.title}</p>
-                <p className="text-xl md:text-2xl font-bold text-gray-900">{card.value}</p>
+                <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">{card.title}</p>
+                <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p>
                 {card.trend && (
                   <div className="flex items-center mt-1">
-                    <span className={`text-xs font-semibold ${card.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-xs font-semibold ${card.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {card.isPositive ? '↑' : '↓'} {card.trend}
                     </span>
-                    <span className="text-xs text-gray-500 ml-1">vs. anterior</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">vs. anterior</span>
                   </div>
                 )}
               </div>
@@ -343,8 +343,8 @@ export default function DashboardPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Ventas últimos 7 días */}
-        <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">Ventas Últimos 7 Días</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-4">Ventas Últimos 7 Días</h2>
           <div className="h-64 md:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={dailySales}>
@@ -384,8 +384,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Top 5 Productos */}
-        <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">Top 5 Productos Más Vendidos</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-4">Top 5 Productos Más Vendidos</h2>
           <div className="h-64 md:h-80">
             {topProducts.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -418,7 +418,7 @@ export default function DashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
                 No hay datos suficientes
               </div>
             )}
@@ -427,28 +427,28 @@ export default function DashboardPage() {
       </div>
 
       {/* Últimos Pedidos */}
-      <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900">Últimos 3 Pedidos</h2>
-          <a href="/dashboard/pedidos" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Últimos 3 Pedidos</h2>
+          <a href="/dashboard/pedidos" className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium">
             Ver todos →
           </a>
         </div>
         {recentOrders.length > 0 ? (
           <div className="space-y-3">
             {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-gray-900">#{order.id}</span>
-                    <span className="text-sm text-gray-600">{order.nombre_cliente}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">#{order.id}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-300">{order.nombre_cliente}</span>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {format(new Date(order.created_at), "d 'de' MMMM, HH:mm", { locale: es })}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-gray-900">
+                  <span className="font-bold text-gray-900 dark:text-white">
                     ${order.total % 1 === 0 ? order.total.toFixed(0) : order.total.toFixed(2)} MXN
                   </span>
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -465,34 +465,34 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             No hay pedidos recientes
           </div>
         )}
       </div>
 
       {/* Top Clientes */}
-      <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900">🏆 Top 5 Clientes VIP</h2>
-          <a href="/dashboard/clientes" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">🏆 Top 5 Clientes VIP</h2>
+          <a href="/dashboard/clientes" className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium">
             Ver todos →
           </a>
         </div>
         {topClients.length > 0 ? (
           <div className="space-y-3">
             {topClients.map((client, index) => (
-              <div key={client.telefono} className="flex items-center gap-3 p-3 bg-gradient-to-r from-orange-50 to-white rounded-lg border border-orange-100">
+              <div key={client.telefono} className="flex items-center gap-3 p-3 bg-gradient-to-r from-orange-50 dark:from-orange-900/20 to-white dark:to-gray-700 rounded-lg border border-orange-100 dark:border-orange-800">
                 <div className="flex-shrink-0 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg">
                   {index + 1}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">{client.nombre}</p>
-                  <p className="text-xs text-gray-500">{client.telefono}</p>
+                  <p className="font-semibold text-gray-900 dark:text-white truncate">{client.nombre}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{client.telefono}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-orange-600">{client.pedidos} pedidos</p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-sm font-bold text-orange-600 dark:text-orange-400">{client.pedidos} pedidos</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
                     ${client.total % 1 === 0 ? client.total.toFixed(0) : client.total.toFixed(2)} MXN
                   </p>
                 </div>
@@ -500,7 +500,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             No hay datos de clientes
           </div>
         )}

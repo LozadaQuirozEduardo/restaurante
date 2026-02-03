@@ -16,8 +16,16 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pendingOrders, setPendingOrders] = useState(0)
   const [isOnline, setIsOnline] = useState(true)
+  const [darkMode, setDarkMode] = useState(false)
 
   useEffect(() => {
+    // Cargar preferencia de modo oscuro
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true'
+    setDarkMode(savedDarkMode)
+    if (savedDarkMode) {
+      document.documentElement.classList.add('dark')
+    }
+    
     checkUser()
     fetchPendingOrders()
     checkConnection()
@@ -64,6 +72,18 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
+  function toggleDarkMode() {
+    const newDarkMode = !darkMode
+    setDarkMode(newDarkMode)
+    localStorage.setItem('darkMode', String(newDarkMode))
+    
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -82,28 +102,37 @@ export default function DashboardLayout({
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between transition-colors">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-orange-600">El Rinconcito</h1>
+          <h1 className="text-xl font-bold text-orange-600 dark:text-orange-400">El Rinconcito</h1>
           <div className="flex items-center gap-1">
             <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
-            <span className="text-xs text-gray-500">{isOnline ? 'En línea' : 'Desconectado'}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{isOnline ? 'En línea' : 'Desconectado'}</span>
           </div>
         </div>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-lg hover:bg-gray-100 transition"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {sidebarOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            title={darkMode ? 'Modo Claro' : 'Modo Oscuro'}
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {sidebarOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Backdrop */}
@@ -115,15 +144,15 @@ export default function DashboardLayout({
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out ${
+      <div className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 transform transition-transform duration-300 ease-in-out ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } lg:translate-x-0`}>
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between px-4 h-16 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-orange-600">El Rinconcito</h1>
+          <div className="flex items-center justify-between px-4 h-16 border-b border-gray-200 dark:border-gray-700">
+            <h1 className="text-xl font-bold text-orange-600 dark:text-orange-400">El Rinconcito</h1>
             <div className="hidden lg:flex items-center gap-1">
               <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
-              <span className="text-xs text-gray-500">{isOnline ? 'Online' : 'Offline'}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{isOnline ? 'Online' : 'Offline'}</span>
             </div>
           </div>
 
@@ -135,8 +164,8 @@ export default function DashboardLayout({
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition ${
                   pathname === item.href
-                    ? 'bg-orange-50 text-orange-600'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
                 <div className="flex items-center">
@@ -152,10 +181,17 @@ export default function DashboardLayout({
             ))}
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <button
+              onClick={toggleDarkMode}
+              className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition"
+            >
+              <span className="mr-3 text-lg">{darkMode ? '☀️' : '🌙'}</span>
+              {darkMode ? 'Modo Claro' : 'Modo Oscuro'}
+            </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition"
+              className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
             >
               <span className="mr-3 text-lg">🚪</span>
               Cerrar Sesión
