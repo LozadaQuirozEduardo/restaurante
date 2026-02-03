@@ -136,7 +136,7 @@ async function getOrCreateCliente(telefono, nombre = null) {
 /**
  * Crear un nuevo pedido
  */
-async function createPedido(clienteId, items, direccion = null, notas = null, telefono = null, nombreCliente = null) {
+async function createPedido(clienteId, items, tipoEntrega = null, direccion = null, notas = null, telefono = null, nombreCliente = null) {
   try {
     // Calcular total del pedido
     let total = 0;
@@ -157,6 +157,16 @@ async function createPedido(clienteId, items, direccion = null, notas = null, te
       }
     }
 
+    // Determinar tipo de entrega para la base de datos
+    let tipoDB = 'recoger'; // valor por defecto
+    if (tipoEntrega) {
+      if (tipoEntrega.toLowerCase().includes('domicilio') || tipoEntrega.toLowerCase().includes('delivery')) {
+        tipoDB = 'delivery';
+      } else if (tipoEntrega.toLowerCase().includes('recoger') || tipoEntrega.toLowerCase().includes('restaurante')) {
+        tipoDB = 'recoger';
+      }
+    }
+
     // Crear el pedido
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
@@ -167,6 +177,7 @@ async function createPedido(clienteId, items, direccion = null, notas = null, te
           nombre_cliente: nombreCliente,
           estado: 'pendiente',
           total: total,
+          tipo_entrega: tipoDB,
           direccion_entrega: direccion,
           notas: notas
         }

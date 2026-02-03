@@ -710,11 +710,12 @@ async function procesarPedido(phoneNumber) {
       throw new Error('No se pudo crear el cliente');
     }
 
-    // Crear pedido con el total correcto
+    // Crear pedido con el total correcto y tipo de entrega
     const pedido = await supabaseService.createPedido(
       cliente.id,
       carrito,
       tipoEntrega,
+      session.data.direccion,
       notas,
       phoneNumber,
       nombre

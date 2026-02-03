@@ -162,6 +162,79 @@ async function handleAdminCommand(phoneNumber, message) {
     }
   }
   
+  // COMANDO: Cancelar pedido
+  // Formatos aceptados:
+  // - "cancelar #6"
+  // - "cancelar 6"
+  // - "cancela #6"
+  
+  const cancelarMatch = messageLower.match(/(?:cancelar|cancela|anular)[\s#]*(\d+)/);
+  
+  if (cancelarMatch) {
+    const pedidoId = cancelarMatch[1];
+    
+    try {
+      // Buscar el pedido
+      const { data: pedido, error: fetchError } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('id', pedidoId)
+        .single();
+      
+      if (fetchError || !pedido) {
+        await twilioService.sendMessage(
+          phoneNumber,
+          `❌ No se encontró el pedido #${pedidoId}`
+        );
+        return true;
+      }
+      
+      // Verificar si ya está cancelado
+      if (pedido.estado === 'cancelado') {
+        await twilioService.sendMessage(
+          phoneNumber,
+          `ℹ️ El pedido #${pedidoId} ya estaba cancelado`
+        );
+        return true;
+      }
+      
+      // Actualizar el pedido a cancelado
+      const { error: updateError } = await supabase
+        .from('pedidos')
+        .update({ estado: 'cancelado' })
+        .eq('id', pedidoId);
+      
+      if (updateError) {
+        console.error('Error al cancelar pedido:', updateError);
+        await twilioService.sendMessage(
+          phoneNumber,
+          `❌ Error al cancelar el pedido #${pedidoId}`
+        );
+        return true;
+      }
+      
+      // Enviar confirmación al admin
+      await twilioService.sendMessage(
+        phoneNumber,
+        `❌ *Pedido #${pedidoId} cancelado*\n\n` +
+        `Cliente: ${pedido.nombre_cliente}\n` +
+        `Total: $${pedido.total} MXN\n\n` +
+        `El pedido ha sido marcado como cancelado en el sistema.`
+      );
+      
+      console.log(`❌ Pedido #${pedidoId} marcado como cancelado por admin`);
+      return true;
+      
+    } catch (error) {
+      console.error('Error al procesar comando cancelar:', error);
+      await twilioService.sendMessage(
+        phoneNumber,
+        `❌ Error al procesar el comando: ${error.message}`
+      );
+      return true;
+    }
+  }
+  
   // COMANDO: Ver pedidos pendientes
   if (messageLower.includes('pendientes') || messageLower.includes('pedidos')) {
     try {
@@ -190,6 +263,7 @@ async function handleAdminCommand(phoneNumber, message) {
       });
       
       mensaje += `\n💡 Para completar un pedido escribe:\n"completar #6"`;
+      mensaje += `\n💡 Para cancelar un pedido escribe:\n"cancelar #6"`;
       
       await twilioService.sendMessage(phoneNumber, mensaje);
       return true;
