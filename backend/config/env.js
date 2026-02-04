@@ -34,6 +34,11 @@ const config = {
     whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER
   },
   
+  // Número del restaurante/admin para notificaciones
+  restaurant: {
+    phone: process.env.RESTAURANT_PHONE || '+5215519060013'
+  },
+  
   // Supabase
   supabase: {
     url: process.env.SUPABASE_URL,

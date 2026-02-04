@@ -5,6 +5,7 @@
 
 const whatsappService = require('./whatsappService');
 const supabaseService = require('./supabaseService');
+const config = require('../config/env');
 
 // Almacenamiento temporal de sesiones (en producción usar Redis o BD)
 const sessions = new Map();
@@ -12,8 +13,8 @@ const sessions = new Map();
 // Tiempo de expiración de sesión (15 minutos)
 const SESSION_TIMEOUT = 15 * 60 * 1000;
 
-// Número de administrador autorizado
-const ADMIN_PHONE = '+5215519060013';
+// Número de administrador autorizado y para notificaciones
+const ADMIN_PHONE = config.restaurant.phone;
 
 /**
  * Obtener o crear sesión de usuario
@@ -1012,7 +1013,7 @@ async function procesarPedido(phoneNumber) {
     await whatsappService.sendTextMessage(phoneNumber, mensajeConfirmacion);
 
     // Enviar notificación al restaurante
-    const numeroRestaurante = '+5215519060013';
+    const numeroRestaurante = ADMIN_PHONE;
     const ahora = new Date();
     const hora = ahora.toLocaleTimeString('es-MX', { 
       hour: '2-digit', 
@@ -1056,7 +1057,17 @@ async function procesarPedido(phoneNumber) {
     
     notificacion += `\n⏰ *Hora:* ${hora}`;
     
-    await whatsappService.sendTextMessage(numeroRestaurante, notificacion);
+    // Enviar notificación al restaurante con manejo de errores mejorado
+    try {
+      console.log(`📤 Enviando notificación del pedido #${pedido.id} a ${numeroRestaurante}`);
+      await whatsappService.sendTextMessage(numeroRestaurante, notificacion);
+      console.log(`✅ Notificación enviada exitosamente al restaurante`);
+    } catch (notifError) {
+      console.error(`❌ Error al enviar notificación al restaurante:`, notifError);
+      console.error(`   Número destino: ${numeroRestaurante}`);
+      console.error(`   Mensaje: ${notificacion.substring(0, 100)}...`);
+      // No lanzar el error para no afectar al cliente
+    }
 
     clearSession(phoneNumber);
 
