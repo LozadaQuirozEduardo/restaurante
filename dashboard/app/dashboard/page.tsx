@@ -109,7 +109,7 @@ export default function DashboardPage() {
       const monthStart = startOfMonth(now).toISOString()
       const sevenDaysAgo = subDays(new Date(), 7).toISOString()
 
-      // EJECUTAR TODAS LAS CONSULTAS EN PARALELO CON OPTIMIZACIONES
+      // EJECUTAR TODAS LAS CONSULTAS EN PARALELO
       const [
         todayOrdersResult,
         weekOrdersResult,
@@ -123,29 +123,28 @@ export default function DashboardPage() {
         topClientsResult,
         lowStockResult
       ] = await Promise.all([
-        // Stats - solo traer totales, no todos los campos
-        supabase.from('pedidos').select('total').gte('created_at', todayStart).eq('estado', 'completado').limit(1000),
-        supabase.from('pedidos').select('total').gte('created_at', weekStart).eq('estado', 'completado').limit(2000),
-        supabase.from('pedidos').select('total').gte('created_at', monthStart).eq('estado', 'completado').limit(5000),
+        // Stats
+        supabase.from('pedidos').select('total').gte('created_at', todayStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', weekStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', monthStart).eq('estado', 'completado'),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
-        // Optimizar: solo últimos 100 pedidos completados para calcular promedio
-        supabase.from('pedidos').select('total').eq('estado', 'completado').order('created_at', { ascending: false }).limit(100),
+        supabase.from('pedidos').select('total').eq('estado', 'completado'),
         
-        // Daily sales - solo últimos 7 días con campos específicos
-        supabase.from('pedidos').select('created_at, total').gte('created_at', sevenDaysAgo).eq('estado', 'completado').order('created_at', { ascending: false }).limit(500),
+        // Daily sales - una sola query para todos los días
+        supabase.from('pedidos').select('created_at, total').gte('created_at', sevenDaysAgo).eq('estado', 'completado'),
         
-        // Top products - solo últimos 30 días para mejor performance
-        supabase.from('pedido_detalles').select('producto_nombre, cantidad, pedidos!inner(estado, created_at)').gte('pedidos.created_at', subDays(new Date(), 30).toISOString()).eq('pedidos.estado', 'completado').limit(500),
+        // Top products
+        supabase.from('pedido_detalles').select('producto_nombre, cantidad, pedidos!inner(estado)'),
         
-        // Recent orders - solo 3 más recientes
+        // Recent orders
         supabase.from('pedidos').select('id, created_at, nombre_cliente, total, estado').order('created_at', { ascending: false }).limit(3),
         
-        // Top clients - solo últimos 30 días
-        supabase.from('pedidos').select('nombre_cliente, telefono, total').eq('estado', 'completado').gte('created_at', subDays(new Date(), 30).toISOString()).limit(500),
+        // Top clients
+        supabase.from('pedidos').select('nombre_cliente, telefono, total').eq('estado', 'completado'),
         
-        // Low stock / high demand products - últimos 7 días
-        supabase.from('pedido_detalles').select('producto_nombre, cantidad, pedidos!inner(estado, created_at)').gte('pedidos.created_at', sevenDaysAgo).eq('pedidos.estado', 'completado').limit(300)
+        // Low stock / high demand products
+        supabase.from('pedido_detalles').select('producto_nombre, cantidad, pedidos!inner(estado, created_at)').gte('pedidos.created_at', sevenDaysAgo)
       ])
 
       // PROCESAR STATS

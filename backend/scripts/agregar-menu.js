@@ -23,102 +23,105 @@ async function agregarProductos() {
 
     const productos = [
       // PAMBAZOS
-      { nombre: 'Pambazo de Chorizo con Papas', descripcion: 'Al gusto', precio: 90, categoria_id: catMap['platos fuertes'] || catMap['entradas'], disponible: true },
+      { nombre: 'Pambazo de Chorizo con Papas', descripcion: 'Al gusto', precio: 150, categoria_id: catMap['platos fuertes'] || catMap['entradas'], disponible: true },
       
       // TOSTADAS
-      { nombre: 'Tostada de Pata de Res', descripcion: '', precio: 35, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Tostada de Tinga de Pollo', descripcion: '', precio: 35, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Tostada de Tinga de Res', descripcion: '', precio: 35, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Tostada de Pata de Res', descripcion: '', precio: 125, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Tostada de Tinga de Pollo', descripcion: '', precio: 125, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Tostada de Tinga de Res', descripcion: '', precio: 125, categoria_id: catMap['entradas'], disponible: true },
       
       // HAMBURGUESAS Y HOT-DOG
       { nombre: 'Hamburguesa Completa', descripcion: 'Con papas fritas, tocino y queso', precio: 110, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Hot-Dog', descripcion: 'Con tocino y papas fritas', precio: 75, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Hot-Dog', descripcion: 'Con tocino y papas fritas', precio: 175, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // CALDOS
-      { nombre: 'Caldo de Res Chico', descripcion: '', precio: 95, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Caldo de Res Chico', descripcion: '', precio: 195, categoria_id: catMap['platos fuertes'], disponible: true },
       { nombre: 'Caldo de Res Grande', descripcion: '', precio: 110, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Caldo de Pollo Chico', descripcion: '', precio: 95, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Caldo de Pollo Chico', descripcion: '', precio: 195, categoria_id: catMap['platos fuertes'], disponible: true },
       { nombre: 'Caldo de Pollo Grande', descripcion: '', precio: 110, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Pancita de Res Chica', descripcion: '', precio: 95, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Pancita de Res Grande', descripcion: '', precio: 105, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Pancita de Res Chica', descripcion: '', precio: 195, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Pancita de Res Grande', descripcion: '', precio: 110, categoria_id: catMap['platos fuertes'], disponible: true },
       { nombre: 'Pozole de Puerco y Pollo', descripcion: '', precio: 110, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // DESAYUNOS
-      { nombre: 'Huevos con Jamón', descripcion: '', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Huevos a la Mexicana', descripcion: '', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Huevos con Longaniza', descripcion: '', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Huevos con Salchicha', descripcion: '', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Huevos con Jamón', descripcion: 'Al gusto papas a la Mexicana', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Huevos a la Mexicana', descripcion: 'Al gusto papas a la Mexicana', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Huevos con Longaniza', descripcion: 'Al gusto papas a la Mexicana', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Huevos con Salchicha', descripcion: 'Al gusto papas a la Mexicana', precio: 130, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // HOT CAKES
-      { nombre: 'Hot Cakes con Huevo y Tocino', descripcion: '', precio: 110, categoria_id: catMap['postres'], disponible: true },
+      { nombre: 'Hot Cakes con Huevo y Tocino', descripcion: '', precio: 140, categoria_id: catMap['postres'], disponible: true },
       
       // CHILAQUILES
-      { nombre: 'Chilaquiles Rojos Chicos', descripcion: 'Con huevo, bisteck o pollo', precio: 125, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Chilaquiles Rojos Grandes', descripcion: 'Con huevo, bisteck o pollo', precio: 145, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Chilaquiles Verdes Chicos', descripcion: 'Con huevo, bisteck o pollo', precio: 125, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Chilaquiles Verdes Grandes', descripcion: 'Con huevo, bisteck o pollo', precio: 145, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Chilaquiles Rojos Chicos', descripcion: 'Con huevo, bisteck o pollo', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Chilaquiles Rojos Grandes', descripcion: 'Con huevo, bisteck o pollo', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Chilaquiles Verdes Chicos', descripcion: 'Con huevo, bisteck o pollo', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Chilaquiles Verdes Grandes', descripcion: 'Con huevo, bisteck o pollo', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // ENCHILADAS
-      { nombre: 'Enchiladas Verdes', descripcion: 'El pedido incluye huevo', precio: 135, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Enchiladas Rojas', descripcion: 'El pedido incluye huevo', precio: 135, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Enchiladas de Pollo', descripcion: 'El pedido incluye huevo', precio: 135, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Enchiladas Verdes', descripcion: 'El pedido incluye huevo', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Enchiladas Rojas', descripcion: 'El pedido incluye huevo', precio: 155, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Enchiladas de Pollo', descripcion: 'El pedido incluye huevo', precio: 165, categoria_id: catMap['platos fuertes'], disponible: true },
       { nombre: 'Enchiladas de Bisteck', descripcion: 'El pedido incluye huevo', precio: 160, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Enchiladas de Mole', descripcion: 'El pedido incluye huevo', precio: 135, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Enchiladas de Mole', descripcion: 'El pedido incluye huevo', precio: 155, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // ENFRIJOLADAS
-      { nombre: 'Enfrijoladas de Pollo', descripcion: 'El pedido incluye huevo', precio: 135, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Enfrijoladas de Pollo', descripcion: 'El pedido incluye huevo', precio: 160, categoria_id: catMap['platos fuertes'], disponible: true },
       { nombre: 'Enfrijoladas de Bisteck', descripcion: 'El pedido incluye huevo', precio: 160, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // QUESADILLAS
-      { nombre: 'Quesadilla de Papa', descripcion: '', precio: 15, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Quesadilla de Bisteck', descripcion: '', precio: 25, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Quesadilla de Tinga de Pollo', descripcion: '', precio: 25, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Quesadilla de Tinga de Res', descripcion: '', precio: 25, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Quesadilla de Papas con Rajas', descripcion: '', precio: 25, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Quesadilla de Hongos', descripcion: '', precio: 25, categoria_id: catMap['entradas'], disponible: true },
-      { nombre: 'Quesadilla de Picadillo', descripcion: '', precio: 25, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Papa', descripcion: '', precio: 165, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Bisteck', descripcion: '', precio: 175, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Tinga de Pollo', descripcion: '', precio: 165, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Tinga de Res', descripcion: '', precio: 165, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Papas con Rajas', descripcion: '', precio: 165, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Hongos', descripcion: '', precio: 165, categoria_id: catMap['entradas'], disponible: true },
+      { nombre: 'Quesadilla de Picadillo', descripcion: '', precio: 155, categoria_id: catMap['entradas'], disponible: true },
       
       // TORTAS
-      { nombre: 'Torta de Salchicha', descripcion: '', precio: 70, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Torta de Huevo con Longaniza', descripcion: '', precio: 70, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Torta de Longaniza', descripcion: '', precio: 70, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Torta de Jamón', descripcion: '', precio: 70, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Torta de Milanesa de Pollo', descripcion: '', precio: 85, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Torta de Milanesa de Res', descripcion: '', precio: 85, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Torta de Salchicha', descripcion: '', precio: 170, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Torta de Huevo con Longaniza', descripcion: '', precio: 170, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Torta de Longaniza', descripcion: '', precio: 170, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Torta de Jamón', descripcion: '', precio: 170, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Torta de Milanesa de Pollo', descripcion: '', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Torta de Milanesa de Res', descripcion: '', precio: 185, categoria_id: catMap['platos fuertes'], disponible: true },
       
-      // SOPAS
-      { nombre: 'Sopa de Bisteck', descripcion: '', precio: 45, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Sopa de Huevo', descripcion: '', precio: 45, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Sopa de Pollo', descripcion: '', precio: 45, categoria_id: catMap['platos fuertes'], disponible: true },
+      // SOPES
+      { nombre: 'Sopes de Bisteck', descripcion: '', precio: 145, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Sopes de Huevo', descripcion: '', precio: 145, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Sopes de Pollo', descripcion: '', precio: 145, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // TACOS DORADOS
-      { nombre: 'Tacos Dorados de Res', descripcion: '', precio: 45, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Tacos Dorados de Pollo', descripcion: '', precio: 45, categoria_id: catMap['platos fuertes'], disponible: true },
-      { nombre: 'Tacos Dorados de Papas con Longaniza', descripcion: '', precio: 60, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Tacos Dorados de Res', descripcion: '', precio: 115, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Tacos Dorados de Pollo', descripcion: '', precio: 115, categoria_id: catMap['platos fuertes'], disponible: true },
+      { nombre: 'Tacos Dorados de Papas con Longaniza', descripcion: '', precio: 115, categoria_id: catMap['platos fuertes'], disponible: true },
       
       // BEBIDAS - REFRESCOS
-      { nombre: 'Fanta', descripcion: 'Refresco 600ml', precio: 25, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Manzana', descripcion: 'Refresco', precio: 25, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Sprite', descripcion: 'Refresco', precio: 25, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Coca-Cola', descripcion: 'Refresco 600ml', precio: 175, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Fanta', descripcion: 'Refresco 600ml', precio: 135, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Manzana', descripcion: 'Refresco', precio: 125, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Sprite', descripcion: 'Refresco', precio: 135, categoria_id: catMap['bebidas'], disponible: true },
       
       // BEBIDAS - AGUAS FRESCAS
-      { nombre: 'Café de Olla', descripcion: '', precio: 25, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Té de Limón', descripcion: '', precio: 25, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Manzanilla', descripcion: '', precio: 25, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Agua Fresca', descripcion: '', precio: 170, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Café de Olla', descripcion: '', precio: 125, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Té de Limón', descripcion: '', precio: 125, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Manzanilla', descripcion: '', precio: 125, categoria_id: catMap['bebidas'], disponible: true },
       
       // BEBIDAS - JUGOS
-      { nombre: 'Jugo Natural', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Jugo Verde', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Jugo de Naranja', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Jugo de Zanahoria', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Jugo Natural Chico', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Jugo Natural Grande', descripcion: '', precio: 195, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Jugo Verde', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Jugo de Naranja', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Jugo de Zanahoria', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
       
       // BEBIDAS - LICUADOS
-      { nombre: 'Licuado de Fresa', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Licuado de Plátano', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
-      { nombre: 'Licuado de Avena', descripcion: '', precio: 45, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Licuado de Fresa', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Licuado de Plátano', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
+      { nombre: 'Licuado de Avena', descripcion: '', precio: 145, categoria_id: catMap['bebidas'], disponible: true },
       
       // BEBIDAS - ATOLES
-      { nombre: 'Atole', descripcion: '', precio: 25, categoria_id: catMap['bebidas'], disponible: true }
+      { nombre: 'Atole', descripcion: '', precio: 125, categoria_id: catMap['bebidas'], disponible: true }
     ];
 
     console.log('📦 Agregando', productos.length, 'productos...');

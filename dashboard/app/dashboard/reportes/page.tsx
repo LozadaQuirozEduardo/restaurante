@@ -87,7 +87,7 @@ export default function ReportesPage() {
       const monthStart = startOfMonth(now).toISOString()
       const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString()
 
-      // PARALELIZAR TODAS LAS CONSULTAS CON OPTIMIZACIONES
+      // PARALELIZAR TODAS LAS CONSULTAS
       const [
         todayOrdersResult,
         yesterdayOrdersResult,
@@ -104,21 +104,20 @@ export default function ReportesPage() {
         completedOrdersResult,
         todayOrdersDetailedResult
       ] = await Promise.all([
-        supabase.from('pedidos').select('total').gte('created_at', todayStart).eq('estado', 'completado').limit(500),
-        supabase.from('pedidos').select('total').gte('created_at', yesterdayStart).lt('created_at', todayStart).eq('estado', 'completado').limit(500),
-        supabase.from('pedidos').select('total').gte('created_at', weekStart).eq('estado', 'completado').limit(1000),
-        supabase.from('pedidos').select('total').gte('created_at', lastWeekStart).lt('created_at', weekStart).eq('estado', 'completado').limit(1000),
-        supabase.from('pedidos').select('total').gte('created_at', monthStart).eq('estado', 'completado').limit(3000),
-        supabase.from('pedidos').select('total').gte('created_at', lastMonthStart).lt('created_at', monthStart).eq('estado', 'completado').limit(3000),
+        supabase.from('pedidos').select('total').gte('created_at', todayStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', yesterdayStart).lt('created_at', todayStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', weekStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', lastWeekStart).lt('created_at', weekStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', monthStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', lastMonthStart).lt('created_at', monthStart).eq('estado', 'completado'),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'completado'),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'cancelado'),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('tipo_entrega', 'delivery'),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('tipo_entrega', 'recoger'),
-        // Solo últimos 100 pedidos completados para calcular promedio
-        supabase.from('pedidos').select('total').eq('estado', 'completado').order('created_at', { ascending: false }).limit(100),
-        supabase.from('pedidos').select('created_at, total, estado').gte('created_at', todayStart).limit(200)
+        supabase.from('pedidos').select('total').eq('estado', 'completado'),
+        supabase.from('pedidos').select('created_at, total, estado').gte('created_at', todayStart)
       ])
 
       // PROCESAR RESULTADOS
