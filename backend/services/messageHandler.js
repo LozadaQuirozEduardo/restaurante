@@ -479,18 +479,24 @@ async function iniciarPedido(phoneNumber, pagina = 1) {
     message += `${numeroReal}. ${prod.nombre} - $${precio} MXN\n`;
   });
 
-  message += '\n📝 Escribe el(los) *número(s)* del producto que deseas ordenar.\n\n💡 Puedes seleccionar varios productos separados por comas (ej: 1, 3, 5)\n';
+  message += '\n━━━━━━━━━━━━━━━━━━━━━━\n';
+  message += '📝 *¿Cómo ordenar?*\n\n';
+  message += `⚠️ *IMPORTANTE:* Usa los números *${inicioIndex + 1}* al *${finIndex}* de esta página\n\n`;
+  message += '✅ Un producto: Escribe *1*\n';
+  message += '✅ Varios: Separa con comas *1, 3, 5*\n';
+  message += '✅ Máximo: 5 productos a la vez\n';
   
   if (totalPaginas > 1) {
+    message += `\n📄 Página ${pagina} de ${totalPaginas}\n`;
     if (pagina < totalPaginas) {
-      message += '\n➡️ Escribe *siguiente* para ver más productos';
+      message += '➡️ Escribe *siguiente* para ver más\n';
     }
     if (pagina > 1) {
-      message += '\n⬅️ Escribe *anterior* para ver productos anteriores';
+      message += '⬅️ Escribe *anterior* para regresar\n';
     }
   }
   
-  message += '\n\n💡 También puedes escribir *cancelar* para salir.';
+  message += '\n❌ Escribe *cancelar* para salir';
 
   await whatsappService.sendTextMessage(phoneNumber, message);
   updateSession(phoneNumber, { 
@@ -542,16 +548,67 @@ async function handlePedirProducto(phoneNumber, message) {
   const numeros = message.split(',').map(n => n.trim());
   const productosSeleccionados = [];
 
+  // Validar límite de productos
+  if (numeros.length > 5) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '⚠️ *Solo puedes seleccionar hasta 5 productos a la vez.*\n\n' +
+      'Escribe los números separados por comas (ej: 1, 2, 3)');
+    return;
+  }
+
+  // Calcular rango de productos en esta página
+  const PRODUCTOS_POR_PAGINA = 15;
+  const paginaActualNum = paginaActual || 1;
+  const inicioIndex = (paginaActualNum - 1) * PRODUCTOS_POR_PAGINA;
+  const finIndex = Math.min(inicioIndex + PRODUCTOS_POR_PAGINA, productos.length);
+  const productosEnPagina = productos.slice(inicioIndex, finIndex);
+
   for (const num of numeros) {
-    const productoIndex = parseInt(num) - 1;
+    const numeroProducto = parseInt(num);
     
-    if (isNaN(productoIndex) || productoIndex < 0 || productoIndex >= productos.length) {
+    // Validar que sea un número
+    if (isNaN(numeroProducto)) {
       await whatsappService.sendTextMessage(phoneNumber, 
-        `❌ El número "${num}" no es válido. Por favor elige números de la lista de productos.`);
+        `❌ "${num}" no es un número válido.\n\n` +
+        'Escribe solo números (ej: 1, 2, 3)');
+      return;
+    }
+
+    // Validar rango en la página actual
+    const numeroRelativo = numeroProducto - inicioIndex;
+    if (numeroRelativo < 1 || numeroRelativo > productosEnPagina.length) {
+      const totalPaginas = Math.ceil(productos.length / PRODUCTOS_POR_PAGINA);
+      await whatsappService.sendTextMessage(phoneNumber, 
+        `❌ *El número ${numeroProducto} no está en esta página.*\n\n` +
+        `⚠️ En esta página solo hay productos del *${inicioIndex + 1}* al *${finIndex}*\n\n` +
+        (totalPaginas > 1 ? 
+          `💡 Usa *siguiente* o *anterior* para navegar entre páginas.` : 
+          `💡 Elige un número entre ${inicioIndex + 1} y ${finIndex}.`));
       return;
     }
     
-    productosSeleccionados.push(productos[productoIndex]);
+    const productoIndex = numeroRelativo - 1;
+    const producto = productosEnPagina[productoIndex];
+    
+    // Verificar que el producto existe
+    if (!producto) {
+      await whatsappService.sendTextMessage(phoneNumber, 
+        `❌ Error al obtener el producto #${numeroProducto}.\n\n` +
+        'Por favor intenta nuevamente.');
+      return;
+    }
+    
+    productosSeleccionados.push(producto);
+  }
+
+  // Confirmar productos seleccionados si son múltiples
+  if (productosSeleccionados.length > 1) {
+    let confirmacion = '✅ *Productos seleccionados:*\n\n';
+    productosSeleccionados.forEach((p, i) => {
+      confirmacion += `${i + 1}. ${p.nombre} - $${p.precio.toFixed(2)}\n`;
+    });
+    confirmacion += '\n📦 Ahora indica la cantidad para cada uno.';
+    await whatsappService.sendTextMessage(phoneNumber, confirmacion);
   }
 
   // Guardar todos los productos seleccionados y empezar con el primero
@@ -561,8 +618,12 @@ async function handlePedirProducto(phoneNumber, message) {
   const producto = productosSeleccionados[0];
   
   await whatsappService.sendTextMessage(phoneNumber, 
-    `✅ Seleccionaste: *${producto.nombre}* ($${producto.precio.toFixed(2)})\n\n` +
-    `📦 ¿Cuántas unidades deseas? (Escribe un número)`
+    `✅ *Producto seleccionado:*\n\n` +
+    `🍽️ ${producto.nombre}\n` +
+    `💰 Precio: $${producto.precio.toFixed(2)}\n` +
+    (producto.categorias?.nombre ? `📂 Categoría: ${producto.categorias.nombre}\n` : '') +
+    `\n📦 *¿Cuántas unidades deseas?*\n` +
+    `💡 Escribe un número (ej: 1, 2, 3...)`
   );
 
   session.data.productoSeleccionado = producto;
@@ -578,9 +639,25 @@ async function handlePedirCantidad(phoneNumber, message) {
 
   const cantidad = parseInt(message);
 
-  if (isNaN(cantidad) || cantidad <= 0) {
+  // Validaciones de cantidad
+  if (isNaN(cantidad)) {
     await whatsappService.sendTextMessage(phoneNumber, 
-      '❌ Por favor ingresa una cantidad válida (número mayor a 0).');
+      '❌ Eso no es un número válido.\n\n' +
+      '💡 Escribe solo números (ej: 1, 2, 3...)');
+    return;
+  }
+
+  if (cantidad <= 0) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ La cantidad debe ser mayor a 0.\n\n' +
+      '💡 Escribe cuántas unidades deseas.');
+    return;
+  }
+
+  if (cantidad > 50) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '⚠️ *Cantidad muy alta*\n\n' +
+      'Por pedidos mayores a 50 unidades, por favor llámanos al [TU_TELEFONO] para atenderte mejor.');
     return;
   }
 
@@ -593,9 +670,14 @@ async function handlePedirCantidad(phoneNumber, message) {
   });
 
   const subtotal = productoSeleccionado.precio * cantidad;
+  const totalCarrito = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
   await whatsappService.sendTextMessage(phoneNumber, 
-    `✅ Agregado: ${cantidad}x ${productoSeleccionado.nombre} - $${subtotal.toFixed(2)}`
+    `✅ *Agregado al carrito:*\n\n` +
+    `${cantidad}x ${productoSeleccionado.nombre}\n` +
+    `💰 Subtotal: $${subtotal.toFixed(2)}\n\n` +
+    `🛒 Total en carrito: $${totalCarrito.toFixed(2)}\n` +
+    `📦 Productos: ${carrito.length}`
   );
 
   // Verificar si hay más productos pendientes de la selección múltiple
@@ -658,9 +740,25 @@ async function handlePedirNombre(phoneNumber, message) {
   const session = getSession(phoneNumber);
   const nombre = message.trim();
 
-  if (nombre.length < 2) {
+  // Validaciones del nombre
+  if (nombre.length < 3) {
     await whatsappService.sendTextMessage(phoneNumber, 
-      '❌ Por favor ingresa un nombre válido.');
+      '❌ El nombre es muy corto.\n\n' +
+      '💡 Por favor escribe tu nombre completo.');
+    return;
+  }
+
+  if (nombre.length > 50) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ El nombre es muy largo.\n\n' +
+      '💡 Por favor escribe solo tu nombre.');
+    return;
+  }
+
+  if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(nombre)) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ El nombre solo debe contener letras.\n\n' +
+      '💡 Por favor escribe tu nombre sin números ni símbolos.');
     return;
   }
 
@@ -729,9 +827,22 @@ async function handlePedirDireccion(phoneNumber, message) {
   const session = getSession(phoneNumber);
   const direccion = message.trim();
 
-  if (direccion.length < 10) {
+  // Validaciones de dirección
+  if (direccion.length < 15) {
     await whatsappService.sendTextMessage(phoneNumber, 
-      '❌ Por favor proporciona una dirección completa con calle, número y colonia.');
+      '❌ La dirección es muy corta.\n\n' +
+      '💡 Por favor incluye:\n' +
+      '• Calle\n' +
+      '• Número\n' +
+      '• Colonia\n' +
+      '• Referencias');
+    return;
+  }
+
+  if (direccion.length > 200) {
+    await whatsappService.sendTextMessage(phoneNumber, 
+      '❌ La dirección es muy larga.\n\n' +
+      '💡 Por favor escribe una dirección más concisa.');
     return;
   }
 
