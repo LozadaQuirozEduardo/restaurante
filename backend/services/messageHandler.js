@@ -325,7 +325,7 @@ async function handleVerCategorias(phoneNumber, message) {
 /**
  * Mostrar todos los productos
  */
-async function showAllProductos(phoneNumber) {
+async function showAllProductos(phoneNumber, pagina = 1) {
   const productos = await supabaseService.getProductos();
 
   if (productos.length === 0) {
@@ -335,8 +335,7 @@ async function showAllProductos(phoneNumber) {
     return;
   }
 
-  let message = '🍽️ *Nuestro Menú Completo:*\n\n';
-  
+  // Agrupar productos por categoría
   const categorias = {};
   productos.forEach(prod => {
     const catNombre = prod.categorias?.nombre || 'Otros';
@@ -346,21 +345,56 @@ async function showAllProductos(phoneNumber) {
     categorias[catNombre].push(prod);
   });
 
+  // Dividir en páginas (máximo 800 caracteres por mensaje aprox)
+  const mensajes = [];
+  let mensajeActual = '🍽️ *Nuestro Menú Completo:*\n\n';
+  let caracteresActuales = mensajeActual.length;
+  
   Object.keys(categorias).forEach(catNombre => {
-    message += `📂 *${catNombre}*\n`;
+    let seccionCategoria = `📂 *${catNombre}*\n`;
+    
     categorias[catNombre].forEach(prod => {
       const precio = prod.precio % 1 === 0 ? prod.precio : prod.precio.toFixed(2);
-      message += `  • ${prod.nombre} - $${precio} MXN\n`;
+      seccionCategoria += `  • ${prod.nombre} - $${precio} MXN\n`;
       if (prod.descripcion) {
-        message += `    _${prod.descripcion}_\n`;
+        seccionCategoria += `    _${prod.descripcion}_\n`;
       }
     });
-    message += '\n';
+    seccionCategoria += '\n';
+
+    // Si agregar esta categoría excede el límite, crear un nuevo mensaje
+    if (caracteresActuales + seccionCategoria.length > 1400) {
+      mensajes.push(mensajeActual);
+      mensajeActual = seccionCategoria;
+      caracteresActuales = seccionCategoria.length;
+    } else {
+      mensajeActual += seccionCategoria;
+      caracteresActuales += seccionCategoria.length;
+    }
   });
 
-  message += '🛒 ¿Deseas hacer un pedido? Escribe *pedir*';
+  // Agregar el último mensaje
+  if (mensajeActual.length > 0) {
+    mensajes.push(mensajeActual);
+  }
 
-  await whatsappService.sendTextMessage(phoneNumber, message);
+  // Enviar todos los mensajes
+  for (let i = 0; i < mensajes.length; i++) {
+    let mensaje = mensajes[i];
+    
+    // Solo agregar la opción de pedido en el último mensaje
+    if (i === mensajes.length - 1) {
+      mensaje += '\n🛒 ¿Deseas hacer un pedido? Escribe *pedir*';
+    }
+    
+    await whatsappService.sendTextMessage(phoneNumber, mensaje);
+    
+    // Pequeña pausa entre mensajes para evitar problemas
+    if (i < mensajes.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+
   updateSession(phoneNumber, { step: 'menu_principal', data: {} });
 }
 
@@ -377,25 +411,50 @@ async function showProductosByCategoria(phoneNumber, categoria) {
     return;
   }
 
-  let message = `🍽️ *${categoria.nombre}*\n\n`;
-  productos.forEach((prod, index) => {
-    const precio = prod.precio % 1 === 0 ? prod.precio : prod.precio.toFixed(2);
-    message += `${index + 1}. *${prod.nombre}* - $${precio} MXN\n`;
-    if (prod.descripcion) {
-      message += `   _${prod.descripcion}_\n`;
+  // Dividir productos en páginas si exceden el límite
+  const PRODUCTOS_POR_PAGINA = 20;
+  const mensajes = [];
+  
+  for (let i = 0; i < productos.length; i += PRODUCTOS_POR_PAGINA) {
+    let message = `🍽️ *${categoria.nombre}*\n\n`;
+    const productosPagina = productos.slice(i, i + PRODUCTOS_POR_PAGINA);
+    
+    productosPagina.forEach((prod, index) => {
+      const numeroReal = i + index + 1;
+      const precio = prod.precio % 1 === 0 ? prod.precio : prod.precio.toFixed(2);
+      message += `${numeroReal}. *${prod.nombre}* - $${precio} MXN\n`;
+      if (prod.descripcion) {
+        message += `   _${prod.descripcion}_\n`;
+      }
+    });
+    
+    mensajes.push(message);
+  }
+
+  // Enviar todos los mensajes
+  for (let i = 0; i < mensajes.length; i++) {
+    let mensaje = mensajes[i];
+    
+    // Solo agregar la opción de pedido en el último mensaje
+    if (i === mensajes.length - 1) {
+      mensaje += '\n🛒 ¿Deseas hacer un pedido? Escribe *pedir*';
     }
-  });
+    
+    await whatsappService.sendTextMessage(phoneNumber, mensaje);
+    
+    // Pequeña pausa entre mensajes
+    if (i < mensajes.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
 
-  message += '\n🛒 ¿Deseas hacer un pedido? Escribe *pedir*';
-
-  await whatsappService.sendTextMessage(phoneNumber, message);
   updateSession(phoneNumber, { step: 'menu_principal', data: {} });
 }
 
 /**
  * Iniciar proceso de pedido
  */
-async function iniciarPedido(phoneNumber) {
+async function iniciarPedido(phoneNumber, pagina = 1) {
   const productos = await supabaseService.getProductos();
 
   if (productos.length === 0) {
@@ -405,19 +464,38 @@ async function iniciarPedido(phoneNumber) {
     return;
   }
 
-  let message = '🛒 *Iniciar Pedido*\n\nPerfecto! Estos son nuestros productos:\n\n';
+  // Dividir productos en páginas de 15 elementos
+  const PRODUCTOS_POR_PAGINA = 15;
+  const totalPaginas = Math.ceil(productos.length / PRODUCTOS_POR_PAGINA);
+  const inicio = (pagina - 1) * PRODUCTOS_POR_PAGINA;
+  const fin = inicio + PRODUCTOS_POR_PAGINA;
+  const productosPagina = productos.slice(inicio, fin);
+
+  let message = `🛒 *Iniciar Pedido* (Página ${pagina}/${totalPaginas})\n\nPerfecto! Estos son nuestros productos:\n\n`;
   
-  productos.forEach((prod, index) => {
+  productosPagina.forEach((prod, index) => {
+    const numeroReal = inicio + index + 1;
     const precio = prod.precio % 1 === 0 ? prod.precio : prod.precio.toFixed(2);
-    message += `${index + 1}. ${prod.nombre} - $${precio} MXN\n`;
+    message += `${numeroReal}. ${prod.nombre} - $${precio} MXN\n`;
   });
 
-  message += '\n📝 Escribe el(los) *número(s)* del producto que deseas ordenar.\n\n💡 Puedes seleccionar varios productos separados por comas (ej: 1, 3, 5)\n\n💡 También puedes escribir *cancelar* para salir.';
+  message += '\n📝 Escribe el(los) *número(s)* del producto que deseas ordenar.\n\n💡 Puedes seleccionar varios productos separados por comas (ej: 1, 3, 5)\n';
+  
+  if (totalPaginas > 1) {
+    if (pagina < totalPaginas) {
+      message += '\n➡️ Escribe *siguiente* para ver más productos';
+    }
+    if (pagina > 1) {
+      message += '\n⬅️ Escribe *anterior* para ver productos anteriores';
+    }
+  }
+  
+  message += '\n\n💡 También puedes escribir *cancelar* para salir.';
 
   await whatsappService.sendTextMessage(phoneNumber, message);
   updateSession(phoneNumber, { 
     step: 'pedir_producto', 
-    data: { productos, carrito: [] } 
+    data: { productos, carrito: [], paginaActual: pagina } 
   });
 }
 
@@ -433,7 +511,32 @@ async function handlePedirInicio(phoneNumber, message) {
  */
 async function handlePedirProducto(phoneNumber, message) {
   const session = getSession(phoneNumber);
-  const { productos } = session.data;
+  const { productos, paginaActual = 1 } = session.data;
+  const messageLower = message.toLowerCase().trim();
+
+  // Manejar navegación entre páginas
+  if (messageLower === 'siguiente' || messageLower === 'sig') {
+    const PRODUCTOS_POR_PAGINA = 15;
+    const totalPaginas = Math.ceil(productos.length / PRODUCTOS_POR_PAGINA);
+    
+    if (paginaActual < totalPaginas) {
+      await iniciarPedido(phoneNumber, paginaActual + 1);
+    } else {
+      await whatsappService.sendTextMessage(phoneNumber, 
+        '❌ Ya estás en la última página.');
+    }
+    return;
+  }
+
+  if (messageLower === 'anterior' || messageLower === 'ant') {
+    if (paginaActual > 1) {
+      await iniciarPedido(phoneNumber, paginaActual - 1);
+    } else {
+      await whatsappService.sendTextMessage(phoneNumber, 
+        '❌ Ya estás en la primera página.');
+    }
+    return;
+  }
 
   // Permitir múltiples productos separados por comas
   const numeros = message.split(',').map(n => n.trim());

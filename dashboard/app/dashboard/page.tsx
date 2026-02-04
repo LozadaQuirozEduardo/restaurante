@@ -6,7 +6,7 @@ import { format, startOfDay, startOfWeek, startOfMonth, subDays } from 'date-fns
 import { es } from 'date-fns/locale'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 
@@ -90,107 +90,92 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchStats()
-    fetchDailySales()
-    fetchTopProducts()
-    fetchRecentOrders()
-    fetchTopClients()
-    fetchLowStockProducts()
+    loadAllData()
     
     // Auto-refresh cada 30 segundos
     const interval = setInterval(() => {
-      fetchStats()
-      fetchDailySales()
-      fetchTopProducts()
-      fetchRecentOrders()
-      fetchTopClients()
-      fetchLowStockProducts()
+      loadAllData()
     }, 30000)
     
     return () => clearInterval(interval)
   }, [])
 
-  async function fetchStats() {
+  // Cargar todos los datos en paralelo para máxima velocidad
+  async function loadAllData() {
     try {
       const now = new Date()
       const todayStart = startOfDay(now).toISOString()
       const weekStart = startOfWeek(now, { locale: es }).toISOString()
       const monthStart = startOfMonth(now).toISOString()
+      const sevenDaysAgo = subDays(new Date(), 7).toISOString()
 
-      // Ventas de hoy
-      const { data: todayOrders } = await supabase
-        .from('pedidos')
-        .select('total')
-        .gte('created_at', todayStart)
-        .eq('estado', 'completado')
+      // EJECUTAR TODAS LAS CONSULTAS EN PARALELO
+      const [
+        todayOrdersResult,
+        weekOrdersResult,
+        monthOrdersResult,
+        totalCountResult,
+        pendingCountResult,
+        completedOrdersResult,
+        dailySalesResult,
+        topProductsResult,
+        recentOrdersResult,
+        topClientsResult,
+        lowStockResult
+      ] = await Promise.all([
+        // Stats
+        supabase.from('pedidos').select('total').gte('created_at', todayStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', weekStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('total').gte('created_at', monthStart).eq('estado', 'completado'),
+        supabase.from('pedidos').select('*', { count: 'exact', head: true }),
+        supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
+        supabase.from('pedidos').select('total').eq('estado', 'completado'),
+        
+        // Daily sales - una sola query para todos los días
+        supabase.from('pedidos').select('created_at, total').gte('created_at', sevenDaysAgo).eq('estado', 'completado'),
+        
+        // Top products
+        supabase.from('pedido_detalles').select('producto_nombre, cantidad, pedidos!inner(estado)'),
+        
+        // Recent orders
+        supabase.from('pedidos').select('id, created_at, nombre_cliente, total, estado').order('created_at', { ascending: false }).limit(3),
+        
+        // Top clients
+        supabase.from('pedidos').select('nombre_cliente, telefono, total').eq('estado', 'completado'),
+        
+        // Low stock / high demand products
+        supabase.from('pedido_detalles').select('producto_nombre, cantidad, pedidos!inner(estado, created_at)').gte('pedidos.created_at', sevenDaysAgo)
+      ])
 
-      const todayRevenue = todayOrders?.reduce((sum, order) => sum + order.total, 0) || 0
-
-      // Ventas de la semana
-      const { data: weekOrders } = await supabase
-        .from('pedidos')
-        .select('total')
-        .gte('created_at', weekStart)
-        .eq('estado', 'completado')
-
-      const weekRevenue = weekOrders?.reduce((sum, order) => sum + order.total, 0) || 0
-
-      // Ventas del mes
-      const { data: monthOrders } = await supabase
-        .from('pedidos')
-        .select('total')
-        .gte('created_at', monthStart)
-        .eq('estado', 'completado')
-
-      const monthRevenue = monthOrders?.reduce((sum, order) => sum + order.total, 0) || 0
-
-      // Total de pedidos
-      const { count: totalCount } = await supabase
-        .from('pedidos')
-        .select('*', { count: 'exact', head: true })
-
-      // Pedidos pendientes
-      const { count: pendingCount } = await supabase
-        .from('pedidos')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado', 'pendiente')
-
+      // PROCESAR STATS
+      const todayRevenue = todayOrdersResult.data?.reduce((sum, order) => sum + order.total, 0) || 0
+      const weekRevenue = weekOrdersResult.data?.reduce((sum, order) => sum + order.total, 0) || 0
+      const monthRevenue = monthOrdersResult.data?.reduce((sum, order) => sum + order.total, 0) || 0
+      const totalCount = totalCountResult.count || 0
+      const pendingCount = pendingCountResult.count || 0
+      
       // Detectar nuevos pedidos pendientes y reproducir sonido
-      if (previousPendingCount > 0 && pendingCount && pendingCount > previousPendingCount) {
+      if (previousPendingCount > 0 && pendingCount > previousPendingCount) {
         playNotificationSound()
       }
-      
       if (pendingCount !== null) {
         setPreviousPendingCount(pendingCount)
       }
 
-      // Calcular ticket promedio (solo pedidos completados)
-      const { data: completedOrders } = await supabase
-        .from('pedidos')
-        .select('total')
-        .eq('estado', 'completado')
-
-      const avgTicket = completedOrders && completedOrders.length > 0
-        ? completedOrders.reduce((sum, order) => sum + order.total, 0) / completedOrders.length
+      const avgTicket = completedOrdersResult.data && completedOrdersResult.data.length > 0
+        ? completedOrdersResult.data.reduce((sum, order) => sum + order.total, 0) / completedOrdersResult.data.length
         : 0
 
       setStats({
         today: todayRevenue,
         week: weekRevenue,
         month: monthRevenue,
-        totalOrders: totalCount || 0,
-        pendingOrders: pendingCount || 0,
+        totalOrders: totalCount,
+        pendingOrders: pendingCount,
         averageTicket: avgTicket,
       })
-    } catch (error) {
-      console.error('Error fetching stats:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  async function fetchDailySales() {
-    try {
+      // PROCESAR DAILY SALES
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const date = subDays(new Date(), 6 - i)
         return {
@@ -199,83 +184,40 @@ export default function DashboardPage() {
         }
       })
 
-      const salesData = await Promise.all(
-        last7Days.map(async ({ date, displayDate }) => {
-          const { data } = await supabase
-            .from('pedidos')
-            .select('total')
-            .gte('created_at', `${date}T00:00:00`)
-            .lt('created_at', `${date}T23:59:59`)
-            .eq('estado', 'completado')
+      const salesByDay = new Map<string, number>()
+      dailySalesResult.data?.forEach(order => {
+        const orderDate = format(new Date(order.created_at), 'yyyy-MM-dd')
+        salesByDay.set(orderDate, (salesByDay.get(orderDate) || 0) + order.total)
+      })
 
-          const total = data?.reduce((sum, order) => sum + order.total, 0) || 0
-          return { date: displayDate, total }
-        })
-      )
-
+      const salesData = last7Days.map(({ date, displayDate }) => ({
+        date: displayDate,
+        total: salesByDay.get(date) || 0
+      }))
       setDailySales(salesData)
-    } catch (error) {
-      console.error('Error fetching daily sales:', error)
-    }
-  }
 
-  async function fetchTopProducts() {
-    try {
-      const { data } = await supabase
-        .from('pedido_detalles')
-        .select('producto_nombre, cantidad, pedidos!inner(estado)')
-        
-      if (!data) return
-
-      // Filtrar solo pedidos completados y agrupar por producto
+      // PROCESAR TOP PRODUCTS
       const productMap = new Map<string, number>()
-      data.forEach((item: any) => {
+      topProductsResult.data?.forEach((item: any) => {
         if (item.pedidos.estado === 'completado') {
-          const current = productMap.get(item.producto_nombre) || 0
-          productMap.set(item.producto_nombre, current + item.cantidad)
+          productMap.set(item.producto_nombre, (productMap.get(item.producto_nombre) || 0) + item.cantidad)
         }
       })
 
-      // Convertir a array y ordenar
       const products = Array.from(productMap.entries())
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5)
-
       setTopProducts(products)
-    } catch (error) {
-      console.error('Error fetching top products:', error)
-    }
-  }
 
-  async function fetchRecentOrders() {
-    try {
-      const { data } = await supabase
-        .from('pedidos')
-        .select('id, created_at, nombre_cliente, total, estado')
-        .order('created_at', { ascending: false })
-        .limit(3)
-
-      if (data) {
-        setRecentOrders(data)
+      // PROCESAR RECENT ORDERS
+      if (recentOrdersResult.data) {
+        setRecentOrders(recentOrdersResult.data)
       }
-    } catch (error) {
-      console.error('Error fetching recent orders:', error)
-    }
-  }
 
-  async function fetchTopClients() {
-    try {
-      const { data } = await supabase
-        .from('pedidos')
-        .select('nombre_cliente, telefono, total')
-        .eq('estado', 'completado')
-
-      if (!data) return
-
-      // Agrupar por cliente
+      // PROCESAR TOP CLIENTS
       const clientMap = new Map<string, { telefono: string; pedidos: number; total: number }>()
-      data.forEach((pedido: any) => {
+      topClientsResult.data?.forEach((pedido: any) => {
         const key = pedido.telefono
         const current = clientMap.get(key) || { telefono: pedido.telefono, pedidos: 0, total: 0 }
         clientMap.set(key, {
@@ -285,53 +227,40 @@ export default function DashboardPage() {
         })
       })
 
-      // Convertir a array, agregar nombres y ordenar por número de pedidos
       const clients = Array.from(clientMap.entries())
         .map(([key, value]) => {
-          const nombre = data.find(p => p.telefono === key)?.nombre_cliente || 'Cliente'
+          const nombre = topClientsResult.data?.find(p => p.telefono === key)?.nombre_cliente || 'Cliente'
           return { nombre, telefono: value.telefono, pedidos: value.pedidos, total: value.total }
         })
         .sort((a, b) => b.pedidos - a.pedidos)
         .slice(0, 5)
-
       setTopClients(clients)
-    } catch (error) {
-      console.error('Error fetching top clients:', error)
-    }
-  }
 
-  async function fetchLowStockProducts() {
-    try {
-      // Obtener productos más vendidos en los últimos 7 días
-      const sevenDaysAgo = subDays(new Date(), 7).toISOString()
-      
-      const { data } = await supabase
-        .from('pedido_detalles')
-        .select('producto_nombre, cantidad, pedidos!inner(estado, created_at)')
-        .gte('pedidos.created_at', sevenDaysAgo)
-
-      if (!data) return
-
-      // Filtrar solo pedidos completados y agrupar por producto
-      const productMap = new Map<string, number>()
-      data.forEach((item: any) => {
+      // PROCESAR LOW STOCK
+      const lowStockMap = new Map<string, number>()
+      lowStockResult.data?.forEach((item: any) => {
         if (item.pedidos.estado === 'completado') {
-          const current = productMap.get(item.producto_nombre) || 0
-          productMap.set(item.producto_nombre, current + item.cantidad)
+          lowStockMap.set(item.producto_nombre, (lowStockMap.get(item.producto_nombre) || 0) + item.cantidad)
         }
       })
 
-      // Productos con más de 10 ventas en la semana se consideran de alto movimiento
-      const highDemandProducts = Array.from(productMap.entries())
+      const highDemandProducts = Array.from(lowStockMap.entries())
         .filter(([_, count]) => count >= 10)
         .map(([name, count]) => ({ nombre: name, vendidos: count }))
         .sort((a, b) => b.vendidos - a.vendidos)
         .slice(0, 5)
-
       setLowStockProducts(highDemandProducts)
+
+      setLoading(false)
     } catch (error) {
-      console.error('Error fetching low stock products:', error)
+      console.error('Error loading data:', error)
+      setLoading(false)
     }
+  }
+
+  const formatCurrency = (value: number) => {
+    if (value === undefined || value === null || isNaN(value)) return '$0'
+    return `$${value % 1 === 0 ? value.toFixed(0) : value.toFixed(2)}`
   }
 
   if (loading) {
@@ -343,128 +272,137 @@ export default function DashboardPage() {
   }
 
   const statCards = [
-    { title: 'Ventas Hoy', value: `$${stats.today % 1 === 0 ? stats.today.toFixed(0) : stats.today.toFixed(2)}`, icon: '💰', color: 'bg-green-500', trend: '+12%', isPositive: true },
-    { title: 'Ventas Semana', value: `$${stats.week % 1 === 0 ? stats.week.toFixed(0) : stats.week.toFixed(2)}`, icon: '📈', color: 'bg-blue-500', trend: '+8%', isPositive: true },
-    { title: 'Ventas Mes', value: `$${stats.month % 1 === 0 ? stats.month.toFixed(0) : stats.month.toFixed(2)}`, icon: '📊', color: 'bg-purple-500', trend: '+15%', isPositive: true },
-    { title: 'Ticket Promedio', value: `$${stats.averageTicket % 1 === 0 ? stats.averageTicket.toFixed(0) : stats.averageTicket.toFixed(2)}`, icon: '🎫', color: 'bg-pink-500', trend: '+5%', isPositive: true },
-    { title: 'Total Pedidos', value: stats.totalOrders, icon: '📦', color: 'bg-orange-500', trend: null, isPositive: null },
-    { title: 'Pedidos Pendientes', value: stats.pendingOrders, icon: '⏳', color: 'bg-yellow-500', trend: null, isPositive: null },
+    { title: 'Ventas de Hoy', value: formatCurrency(stats.today), icon: '💰', color: 'text-orange-600', bgColor: 'bg-orange-50 dark:bg-orange-900/10' },
+    { title: 'Ventas del Mes', value: formatCurrency(stats.month), icon: '📊', color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-900/10' },
+    { title: 'Total Pedidos', value: stats.totalOrders, icon: '📦', color: 'text-slate-600', bgColor: 'bg-slate-50 dark:bg-slate-900/10' },
+    { title: 'Pedidos Pendientes', value: stats.pendingOrders, icon: '⏳', color: 'text-amber-600', bgColor: 'bg-amber-50 dark:bg-amber-900/10' },
   ]
 
-  const COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b']
+  const COLORS = ['#f97316', '#3b82f6', '#10b981']
 
   // Función para exportar a PDF
   const exportToPDF = async () => {
-    const doc = new jsPDF()
-    
-    // Título
-    doc.setFontSize(20)
-    doc.setTextColor(249, 115, 22) // Orange
-    doc.text('El Rinconcito - Reporte de Ventas', 14, 20)
-    
-    // Fecha del reporte
-    doc.setFontSize(10)
-    doc.setTextColor(100)
-    doc.text(`Generado: ${format(new Date(), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: es })}`, 14, 28)
-    
-    // Resumen de ventas
-    doc.setFontSize(14)
-    doc.setTextColor(0)
-    doc.text('Resumen de Ventas', 14, 40)
-    
-    const summaryData = [
-      ['Periodo', 'Monto'],
-      ['Hoy', `$${stats.today % 1 === 0 ? stats.today.toFixed(0) : stats.today.toFixed(2)} MXN`],
-      ['Esta Semana', `$${stats.week % 1 === 0 ? stats.week.toFixed(0) : stats.week.toFixed(2)} MXN`],
-      ['Este Mes', `$${stats.month % 1 === 0 ? stats.month.toFixed(0) : stats.month.toFixed(2)} MXN`],
-      ['Ticket Promedio', `$${stats.averageTicket % 1 === 0 ? stats.averageTicket.toFixed(0) : stats.averageTicket.toFixed(2)} MXN`],
-    ]
-    
-    ;(doc as any).autoTable({
-      startY: 45,
-      head: [summaryData[0]],
-      body: summaryData.slice(1),
-      theme: 'grid',
-      headStyles: { fillColor: [249, 115, 22] }
-    })
-    
-    // Ventas últimos 7 días
-    doc.setFontSize(14)
-    doc.text('Ventas Últimos 7 Días', 14, (doc as any).lastAutoTable.finalY + 15)
-    
-    const salesData = dailySales.map(sale => [
-      sale.date,
-      `$${sale.total % 1 === 0 ? sale.total.toFixed(0) : sale.total.toFixed(2)} MXN`
-    ])
-    
-    ;(doc as any).autoTable({
-      startY: (doc as any).lastAutoTable.finalY + 20,
-      head: [['Fecha', 'Total']],
-      body: salesData,
-      theme: 'striped',
-      headStyles: { fillColor: [249, 115, 22] }
-    })
-    
-    // Top productos
-    doc.setFontSize(14)
-    doc.text('Top 5 Productos Más Vendidos', 14, (doc as any).lastAutoTable.finalY + 15)
-    
-    const productsData = topProducts.map((product, index) => [
-      `${index + 1}`,
-      product.name,
-      `${product.count} unidades`
-    ])
-    
-    ;(doc as any).autoTable({
-      startY: (doc as any).lastAutoTable.finalY + 20,
-      head: [['#', 'Producto', 'Cantidad']],
-      body: productsData,
-      theme: 'striped',
-      headStyles: { fillColor: [249, 115, 22] }
-    })
-    
-    // Top clientes
-    if (topClients.length > 0) {
-      doc.addPage()
-      doc.setFontSize(14)
-      doc.text('Top 5 Clientes VIP', 14, 20)
+    try {
+      const doc = new jsPDF()
       
-      const clientsData = topClients.map((client, index) => [
-        `${index + 1}`,
-        client.nombre,
-        client.telefono,
-        `${client.pedidos} pedidos`,
-        `$${client.total % 1 === 0 ? client.total.toFixed(0) : client.total.toFixed(2)} MXN`
+      // Título
+      doc.setFontSize(20)
+      doc.setTextColor(249, 115, 22) // Orange
+      doc.text('El Rinconcito - Reporte de Ventas', 14, 20)
+      
+      // Fecha del reporte
+      doc.setFontSize(10)
+      doc.setTextColor(100)
+      doc.text(`Generado: ${format(new Date(), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: es })}`, 14, 28)
+      
+      // Resumen de ventas
+      doc.setFontSize(14)
+      doc.setTextColor(0)
+      doc.text('Resumen de Ventas', 14, 40)
+      
+      const summaryData = [
+        ['Periodo', 'Monto'],
+        ['Hoy', `${formatCurrency(stats.today)} MXN`],
+        ['Esta Semana', `${formatCurrency(stats.week)} MXN`],
+        ['Este Mes', `${formatCurrency(stats.month)} MXN`],
+        ['Ticket Promedio', `${formatCurrency(stats.averageTicket)} MXN`],
+      ]
+      
+      autoTable(doc, {
+        startY: 45,
+        head: [summaryData[0]],
+        body: summaryData.slice(1),
+        theme: 'grid',
+        headStyles: { fillColor: [249, 115, 22] }
+      })
+      
+      // Ventas últimos 7 días
+      doc.setFontSize(14)
+      const lastY1 = (doc as any).lastAutoTable?.finalY || 45
+      doc.text('Ventas Últimos 7 Días', 14, lastY1 + 15)
+      
+      const salesData = dailySales.map(sale => [
+        sale.date,
+        `${formatCurrency(sale.total)} MXN`
       ])
       
-      ;(doc as any).autoTable({
-        startY: 25,
-        head: [['#', 'Cliente', 'Teléfono', 'Pedidos', 'Total Gastado']],
-        body: clientsData,
+      autoTable(doc, {
+        startY: lastY1 + 20,
+        head: [['Fecha', 'Total']],
+        body: salesData,
         theme: 'striped',
         headStyles: { fillColor: [249, 115, 22] }
       })
+      
+      // Top productos
+      doc.setFontSize(14)
+      const lastY2 = (doc as any).lastAutoTable?.finalY || lastY1 + 20
+      doc.text('Top 5 Productos Más Vendidos', 14, lastY2 + 15)
+      
+      const productsData = topProducts.map((product, index) => [
+        `${index + 1}`,
+        product.name,
+        `${product.count} unidades`
+      ])
+      
+      autoTable(doc, {
+        startY: lastY2 + 20,
+        head: [['#', 'Producto', 'Cantidad']],
+        body: productsData,
+        theme: 'striped',
+        headStyles: { fillColor: [249, 115, 22] }
+      })
+    
+      // Top clientes
+      if (topClients.length > 0) {
+        doc.addPage()
+        doc.setFontSize(14)
+        doc.text('Top 5 Clientes VIP', 14, 20)
+        
+        const clientsData = topClients.map((client, index) => [
+          `${index + 1}`,
+          client.nombre,
+          client.telefono,
+          `${client.pedidos} pedidos`,
+          `${formatCurrency(client.total)} MXN`
+        ])
+        
+        autoTable(doc, {
+          startY: 25,
+          head: [['#', 'Cliente', 'Teléfono', 'Pedidos', 'Total Gastado']],
+          body: clientsData,
+          theme: 'striped',
+          headStyles: { fillColor: [249, 115, 22] }
+        })
+      }
+      
+      // Estadísticas generales
+      doc.setFontSize(14)
+      const lastY3 = (doc as any).lastAutoTable?.finalY || 25
+      doc.text('Estadísticas Generales', 14, lastY3 + 15)
+      
+      const statsData = [
+        ['Total de Pedidos', stats.totalOrders.toString()],
+        ['Pedidos Pendientes', stats.pendingOrders.toString()],
+      ]
+      
+      autoTable(doc, {
+        startY: lastY3 + 20,
+        head: [['Métrica', 'Valor']],
+        body: statsData,
+        theme: 'grid',
+        headStyles: { fillColor: [249, 115, 22] }
+      })
+      
+      // Guardar PDF
+      doc.save(`Reporte_Ventas_${format(new Date(), 'yyyy-MM-dd')}.pdf`)
+      
+      // Mostrar mensaje de éxito
+      alert('✅ Reporte PDF generado exitosamente')
+    } catch (error) {
+      console.error('Error al generar PDF:', error)
+      alert('❌ Error al generar el PDF. Por favor intenta nuevamente.')
     }
-    
-    // Estadísticas generales
-    doc.setFontSize(14)
-    doc.text('Estadísticas Generales', 14, (doc as any).lastAutoTable.finalY + 15)
-    
-    const statsData = [
-      ['Total de Pedidos', stats.totalOrders.toString()],
-      ['Pedidos Pendientes', stats.pendingOrders.toString()],
-    ]
-    
-    ;(doc as any).autoTable({
-      startY: (doc as any).lastAutoTable.finalY + 20,
-      head: [['Métrica', 'Valor']],
-      body: statsData,
-      theme: 'grid',
-      headStyles: { fillColor: [249, 115, 22] }
-    })
-    
-    // Guardar PDF
-    doc.save(`Reporte_Ventas_${format(new Date(), 'yyyy-MM-dd')}.pdf`)
   }
 
   return (
@@ -555,28 +493,22 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 md:gap-8">
         {statCards.map((card, index) => (
           <div 
             key={card.title} 
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow duration-300 overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8 border border-gray-200 dark:border-gray-700 hover:shadow-xl hover:border-orange-300 dark:hover:border-orange-600 transition-all duration-300 transform hover:-translate-y-1"
             style={{ animationDelay: `${index * 100}ms` }}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">{card.title}</p>
-                <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate">{card.value}</p>
-                {card.trend && (
-                  <div className="flex items-center mt-1">
-                    <span className={`text-xs font-semibold ${card.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {card.isPositive ? '↑' : '↓'} {card.trend}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">vs. anterior</span>
-                  </div>
-                )}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{card.title}</span>
+                <div className={`w-12 h-12 rounded-xl ${card.bgColor} flex items-center justify-center`}>
+                  <span className={`text-2xl ${card.color}`}>{card.icon}</span>
+                </div>
               </div>
-              <div className={`${card.color} w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-lg md:text-xl flex-shrink-0`}>
-                {card.icon}
+              <div>
+                <p className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">{card.value}</p>
               </div>
             </div>
           </div>
@@ -584,7 +516,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Alertas de Stock Bajo / Alta Demanda */}
         {lowStockProducts.length > 0 && (
           <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl shadow-sm p-4 md:p-6 border-2 border-red-200 dark:border-red-800">
@@ -612,40 +544,46 @@ export default function DashboardPage() {
         )}
 
         {/* Ventas últimos 7 días */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-4">Ventas Últimos 7 Días</h2>
-          <div className="h-64 md:h-80">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 md:p-8 border border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-6">Ventas Últimos 7 Días</h2>
+          <div className="h-72 md:h-96">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dailySales}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <LineChart data={dailySales} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="0" stroke="#e5e7eb" className="dark:stroke-gray-700" opacity={0.5} />
                 <XAxis 
                   dataKey="date" 
-                  stroke="#6b7280"
-                  style={{ fontSize: '12px' }}
+                  stroke="#9ca3af"
+                  style={{ fontSize: '13px', fontWeight: '500' }}
+                  tickLine={false}
+                  axisLine={false}
                 />
                 <YAxis 
-                  stroke="#6b7280"
-                  style={{ fontSize: '12px' }}
+                  stroke="#9ca3af"
+                  style={{ fontSize: '13px', fontWeight: '500' }}
                   domain={[0, 'auto']}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => `$${value}`}
                 />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: '#fff', 
                     border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    padding: '12px'
                   }}
                   formatter={(value: number) => [`$${value % 1 === 0 ? value.toFixed(0) : value.toFixed(2)} MXN`, 'Ventas']}
-                  labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
-                  cursor={{ stroke: '#f97316', strokeWidth: 2, strokeDasharray: '5 5' }}
+                  labelStyle={{ fontWeight: '600', marginBottom: '6px', color: '#111827' }}
+                  cursor={{ stroke: '#f97316', strokeWidth: 1, opacity: 0.1, fill: '#f97316' }}
                 />
                 <Line 
                   type="monotone" 
                   dataKey="total" 
                   stroke="#f97316" 
-                  strokeWidth={3}
-                  dot={{ fill: '#f97316', r: 4 }}
-                  activeDot={{ r: 6 }}
+                  strokeWidth={4}
+                  dot={{ fill: '#f97316', r: 5, strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 7, strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -653,33 +591,42 @@ export default function DashboardPage() {
         </div>
 
         {/* Top 5 Productos */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-4">Top 5 Productos Más Vendidos</h2>
-          <div className="h-64 md:h-80">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 md:p-8 border border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-6">Top 5 Productos Más Vendidos</h2>
+          <div className="h-72 md:h-96">
             {topProducts.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProducts} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis type="number" stroke="#6b7280" style={{ fontSize: '12px' }} />
+                <BarChart data={topProducts} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="0" stroke="#e5e7eb" className="dark:stroke-gray-700" opacity={0.5} horizontal={true} vertical={false} />
+                  <XAxis 
+                    type="number" 
+                    stroke="#9ca3af" 
+                    style={{ fontSize: '13px', fontWeight: '500' }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <YAxis 
                     type="category" 
                     dataKey="name" 
-                    stroke="#6b7280"
-                    style={{ fontSize: '11px' }}
-                    width={100}
+                    stroke="#9ca3af"
+                    style={{ fontSize: '13px', fontWeight: '500' }}
+                    width={120}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#fff', 
                       border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                      padding: '12px'
                     }}
                     formatter={(value: number) => [`${value} unidades`, 'Vendidos']}
-                    labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
-                    cursor={{ fill: 'rgba(249, 115, 22, 0.1)' }}
+                    labelStyle={{ fontWeight: '600', marginBottom: '6px', color: '#111827' }}
+                    cursor={{ fill: '#f9731620' }}
                   />
-                  <Bar dataKey="count" radius={[0, 8, 8, 0]}>
+                  <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={30}>
                     {topProducts.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -696,34 +643,34 @@ export default function DashboardPage() {
       </div>
 
       {/* Últimos Pedidos */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Últimos 3 Pedidos</h2>
-          <a href="/dashboard/pedidos" className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 md:p-8 border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Últimos 3 Pedidos</h2>
+          <a href="/dashboard/pedidos" className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-semibold transition-colors">
             Ver todos →
           </a>
         </div>
         {recentOrders.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+              <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-gray-900 dark:text-white">#{order.id}</span>
-                    <span className="text-sm text-gray-600 dark:text-gray-300">{order.nombre_cliente}</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-bold text-base text-gray-900 dark:text-white">#{order.id}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">{order.nombre_cliente}</span>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                     {format(new Date(order.created_at), "d 'de' MMMM, HH:mm", { locale: es })}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    ${order.total % 1 === 0 ? order.total.toFixed(0) : order.total.toFixed(2)} MXN
+                <div className="flex items-center gap-4">
+                  <span className="font-bold text-lg text-gray-900 dark:text-white">
+                    ${order.total % 1 === 0 ? order.total.toFixed(0) : order.total.toFixed(2)}
                   </span>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    order.estado === 'completado' ? 'bg-green-100 text-green-700' :
-                    order.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-red-100 text-red-700'
+                  <span className={`px-3 py-1.5 text-xs font-bold rounded-full ${
+                    order.estado === 'completado' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                    order.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                   }`}>
                     {order.estado === 'completado' ? '✓ Completado' :
                      order.estado === 'pendiente' ? '⏳ Pendiente' :
@@ -741,35 +688,37 @@ export default function DashboardPage() {
       </div>
 
       {/* Top Clientes */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">🏆 Top 5 Clientes VIP</h2>
-          <a href="/dashboard/clientes" className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 md:p-8 border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <span>🏆</span> Top 5 Clientes VIP
+          </h2>
+          <a href="/dashboard/clientes" className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-semibold transition-colors">
             Ver todos →
           </a>
         </div>
         {topClients.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {topClients.map((client, index) => (
-              <div key={client.telefono} className="flex items-center gap-3 p-3 bg-gradient-to-r from-orange-50 dark:from-orange-900/20 to-white dark:to-gray-700 rounded-lg border border-orange-100 dark:border-orange-800">
-                <div className="flex-shrink-0 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg">
+              <div key={client.telefono} className="flex items-center gap-4 p-4 bg-gradient-to-r from-orange-50 dark:from-orange-900/10 to-transparent rounded-xl border border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 transition-all">
+                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md">
                   {index + 1}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 dark:text-white truncate">{client.nombre}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{client.telefono}</p>
+                  <p className="font-bold text-base text-gray-900 dark:text-white truncate mb-1">{client.nombre}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{client.telefono}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col gap-1">
                   <p className="text-sm font-bold text-orange-600 dark:text-orange-400">{client.pedidos} pedidos</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    ${client.total % 1 === 0 ? client.total.toFixed(0) : client.total.toFixed(2)} MXN
+                  <p className="text-base font-bold text-gray-900 dark:text-white">
+                    ${client.total % 1 === 0 ? client.total.toFixed(0) : client.total.toFixed(2)}
                   </p>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             No hay datos de clientes
           </div>
         )}

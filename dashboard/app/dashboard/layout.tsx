@@ -20,6 +20,9 @@ export default function DashboardLayout({
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<Date | null>(null)
+  const [showNotification, setShowNotification] = useState(false)
+  const [notificationData, setNotificationData] = useState<any>(null)
 
   useEffect(() => {
     // Cargar preferencia de modo oscuro
@@ -33,13 +36,53 @@ export default function DashboardLayout({
     fetchPendingOrders()
     checkConnection()
     
-    // Auto-refresh pedidos pendientes cada 30 segundos
+    // Auto-refresh pedidos pendientes cada 10 segundos (más frecuente)
     const interval = setInterval(() => {
       fetchPendingOrders()
       checkConnection()
-    }, 30000)
+    }, 10000)
+
+    // Verificar sesión cada minuto
+    const sessionCheckInterval = setInterval(() => {
+      checkSessionExpiration()
+    }, 60000)
+
+    // SUSCRIPCIÓN EN TIEMPO REAL a nuevos pedidos
+    const pedidosSubscription = supabase
+      .channel('pedidos-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'pedidos'
+        },
+        (payload) => {
+          console.log('🔔 ¡Nuevo pedido recibido en tiempo real!', payload.new)
+          
+          // Reproducir sonido de notificación
+          playNotificationSound()
+          
+          // Mostrar notificación
+          setNotificationData(payload.new)
+          setShowNotification(true)
+          
+          // Actualizar contador de pedidos pendientes
+          fetchPendingOrders()
+          
+          // Ocultar notificación después de 10 segundos
+          setTimeout(() => {
+            setShowNotification(false)
+          }, 10000)
+        }
+      )
+      .subscribe()
     
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      clearInterval(sessionCheckInterval)
+      supabase.removeChannel(pedidosSubscription)
+    }
   }, [])
 
   async function checkUser() {
@@ -48,9 +91,90 @@ export default function DashboardLayout({
     if (!session) {
       router.push('/login')
     } else {
+      // Calcular tiempo de expiración (2 horas desde ahora)
+      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 horas
+      setSessionExpiresAt(expiresAt)
+      localStorage.setItem('sessionExpiresAt', expiresAt.toISOString())
       setLoading(false)
     }
   }
+
+  async function checkSessionExpiration() {
+    const expiresAtStr = localStorage.getItem('sessionExpiresAt')
+    
+    if (!expiresAtStr) {
+      await handleLogout()
+      return
+    }
+
+    const expiresAt = new Date(expiresAtStr)
+    const now = new Date()
+
+    // Si la sesión expiró, cerrar sesión
+    if (now >= expiresAt) {
+      alert('Tu sesión ha expirado por inactividad. Por favor inicia sesión nuevamente.')
+      await handleLogout()
+      return
+    }
+
+    // Si faltan menos de 10 minutos, mostrar advertencia
+    const timeLeft = expiresAt.getTime() - now.getTime()
+    const minutesLeft = Math.floor(timeLeft / 60000)
+    
+    if (minutesLeft <= 10 && minutesLeft > 0) {
+      console.log(`⏰ Tu sesión expirará en ${minutesLeft} minutos`)
+    }
+  }
+
+  // Renovar sesión cuando el usuario interactúa
+  function renewSession() {
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 horas
+    setSessionExpiresAt(expiresAt)
+    localStorage.setItem('sessionExpiresAt', expiresAt.toISOString())
+  }
+
+  // Reproducir sonido de notificación
+  function playNotificationSound() {
+    try {
+      // Usar Web Audio API para generar un sonido
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      oscillator.frequency.value = 800
+      oscillator.type = 'sine'
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+      
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + 0.5)
+    } catch (error) {
+      console.error('Error al reproducir sonido:', error)
+    }
+  }
+
+  useEffect(() => {
+    // Renovar sesión en cada interacción del usuario
+    const handleUserActivity = () => {
+      renewSession()
+    }
+
+    window.addEventListener('click', handleUserActivity)
+    window.addEventListener('keypress', handleUserActivity)
+    window.addEventListener('scroll', handleUserActivity)
+    window.addEventListener('mousemove', handleUserActivity)
+
+    return () => {
+      window.removeEventListener('click', handleUserActivity)
+      window.removeEventListener('keypress', handleUserActivity)
+      window.removeEventListener('scroll', handleUserActivity)
+      window.removeEventListener('mousemove', handleUserActivity)
+    }
+  }, [])
 
   async function fetchPendingOrders() {
     const { count } = await supabase
@@ -72,6 +196,7 @@ export default function DashboardLayout({
 
   async function handleLogout() {
     await supabase.auth.signOut()
+    localStorage.removeItem('sessionExpiresAt')
     router.push('/login')
   }
 
@@ -156,6 +281,7 @@ export default function DashboardLayout({
     { name: 'Pedidos', href: '/dashboard/pedidos', icon: '📦', badge: pendingOrders > 0 ? pendingOrders : null },
     { name: 'Productos', href: '/dashboard/productos', icon: '🍽️', badge: null },
     { name: 'Clientes', href: '/dashboard/clientes', icon: '👥', badge: null },
+    { name: 'Reportes', href: '/dashboard/reportes', icon: '📈', badge: null },
   ]
 
   return (
@@ -259,6 +385,17 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <div className="lg:ml-64 pt-16 lg:pt-0">
+        {/* Overlay para cerrar búsqueda */}
+        {showSearchResults && (
+          <div 
+            className="fixed inset-0 z-20" 
+            onClick={() => {
+              setShowSearchResults(false);
+              setSearchTerm('');
+            }}
+          />
+        )}
+
         {/* Barra de búsqueda global */}
         <div className="sticky top-16 lg:top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-8 py-4">
           <div className="relative max-w-2xl">
@@ -339,6 +476,48 @@ export default function DashboardLayout({
             )}
           </div>
         </div>
+        
+        {/* Notificación de nuevo pedido */}
+        {showNotification && notificationData && (
+          <div className="fixed top-4 right-4 z-50 animate-slide-in">
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl shadow-2xl p-6 max-w-md border-2 border-orange-400">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center animate-bounce">
+                    <span className="text-3xl">🔔</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                    ¡Nuevo Pedido! 
+                    <span className="text-2xl">🍽️</span>
+                  </h3>
+                  <div className="space-y-1">
+                    <p className="font-semibold">Pedido #{notificationData.id}</p>
+                    <p className="text-sm">👤 {notificationData.nombre_cliente}</p>
+                    <p className="text-sm">💰 ${notificationData.total} MXN</p>
+                    <p className="text-sm">📞 {notificationData.telefono}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowNotification(false)}
+                  className="flex-shrink-0 text-white hover:text-gray-200 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <Link 
+                href="/dashboard/pedidos"
+                onClick={() => setShowNotification(false)}
+                className="mt-4 block w-full bg-white text-orange-600 text-center py-2 rounded-lg font-semibold hover:bg-gray-100 transition"
+              >
+                Ver Pedido
+              </Link>
+            </div>
+          </div>
+        )}
         
         <div className="p-4 md:p-8">
           {children}
