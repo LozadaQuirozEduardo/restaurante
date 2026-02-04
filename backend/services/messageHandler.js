@@ -235,10 +235,14 @@ async function handleInicioStep(phoneNumber, message) {
  * Manejar menú principal
  */
 async function handleMenuPrincipal(phoneNumber, message) {
+  const session = getSession(phoneNumber);
+  const categoriaSeleccionada = session?.data?.categoriaSeleccionada || null;
+  
   if (message.includes('menu') || message.includes('menú') || message.includes('producto') || message === '1') {
     await showCategorias(phoneNumber);
   } else if (message.includes('pedir') || message.includes('pedido') || message.includes('comprar') || message === '2') {
-    await iniciarPedido(phoneNumber);
+    // Si hay una categoría seleccionada, iniciar pedido con esa categoría
+    await iniciarPedido(phoneNumber, 1, categoriaSeleccionada);
   } else if (message.includes('mis pedidos') || message.includes('pedidos recientes')) {
     await mostrarPedidosCliente(phoneNumber);
   } else if (message.includes('contacto')) {
@@ -448,14 +452,18 @@ async function showProductosByCategoria(phoneNumber, categoria) {
     }
   }
 
-  updateSession(phoneNumber, { step: 'menu_principal', data: {} });
+  // Guardar la categoría en la sesión para usar al pedir
+  updateSession(phoneNumber, { step: 'menu_principal', data: { categoriaSeleccionada: categoria.id } });
 }
 
 /**
  * Iniciar proceso de pedido
  */
-async function iniciarPedido(phoneNumber, pagina = 1) {
-  const productos = await supabaseService.getProductos();
+async function iniciarPedido(phoneNumber, pagina = 1, categoriaId = null) {
+  // Si hay categoría específica, obtener solo productos de esa categoría
+  const productos = categoriaId 
+    ? await supabaseService.getProductos(categoriaId)
+    : await supabaseService.getProductos();
 
   if (productos.length === 0) {
     await whatsappService.sendTextMessage(phoneNumber, 
@@ -501,7 +509,7 @@ async function iniciarPedido(phoneNumber, pagina = 1) {
   await whatsappService.sendTextMessage(phoneNumber, message);
   updateSession(phoneNumber, { 
     step: 'pedir_producto', 
-    data: { productos, carrito: [], paginaActual: pagina } 
+    data: { productos, carrito: [], paginaActual: pagina, categoriaId: categoriaId } 
   });
 }
 
@@ -517,7 +525,7 @@ async function handlePedirInicio(phoneNumber, message) {
  */
 async function handlePedirProducto(phoneNumber, message) {
   const session = getSession(phoneNumber);
-  const { productos, paginaActual = 1 } = session.data;
+  const { productos, paginaActual = 1, categoriaId = null } = session.data;
   const messageLower = message.toLowerCase().trim();
 
   // Manejar navegación entre páginas
@@ -526,7 +534,7 @@ async function handlePedirProducto(phoneNumber, message) {
     const totalPaginas = Math.ceil(productos.length / PRODUCTOS_POR_PAGINA);
     
     if (paginaActual < totalPaginas) {
-      await iniciarPedido(phoneNumber, paginaActual + 1);
+      await iniciarPedido(phoneNumber, paginaActual + 1, categoriaId);
     } else {
       await whatsappService.sendTextMessage(phoneNumber, 
         '❌ Ya estás en la última página.');
@@ -536,7 +544,7 @@ async function handlePedirProducto(phoneNumber, message) {
 
   if (messageLower === 'anterior' || messageLower === 'ant') {
     if (paginaActual > 1) {
-      await iniciarPedido(phoneNumber, paginaActual - 1);
+      await iniciarPedido(phoneNumber, paginaActual - 1, categoriaId);
     } else {
       await whatsappService.sendTextMessage(phoneNumber, 
         '❌ Ya estás en la primera página.');
@@ -711,9 +719,10 @@ async function handlePedirCantidad(phoneNumber, message) {
  */
 async function handlePedirMasProductos(phoneNumber, message) {
   const session = getSession(phoneNumber);
+  const categoriaId = session?.data?.categoriaId || null;
 
   if (message.includes('si') || message.includes('sí') || message.includes('mas') || message.includes('más')) {
-    await iniciarPedido(phoneNumber);
+    await iniciarPedido(phoneNumber, 1, categoriaId);
   } else if (message.includes('no') || message.includes('continuar') || message.includes('siguiente')) {
     await solicitarNombre(phoneNumber);
   } else {
