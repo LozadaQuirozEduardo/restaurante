@@ -481,7 +481,7 @@ async function iniciarPedido(phoneNumber, pagina = 1) {
 
   message += '\n━━━━━━━━━━━━━━━━━━━━━━\n';
   message += '📝 *¿Cómo ordenar?*\n\n';
-  message += `⚠️ *IMPORTANTE:* Usa los números *${inicioIndex + 1}* al *${finIndex}* de esta página\n\n`;
+  message += `⚠️ *IMPORTANTE:* Usa los números *${inicio + 1}* al *${Math.min(fin, productos.length)}* de esta página\n\n`;
   message += '✅ Un producto: Escribe *1*\n';
   message += '✅ Varios: Separa con comas *1, 3, 5*\n';
   message += '✅ Máximo: 5 productos a la vez\n';
