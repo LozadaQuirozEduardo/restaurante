@@ -17,9 +17,6 @@ interface Producto {
   categoria_id: number;
   subcategoria_id: number | null;
   disponible: boolean;
-  categorias: {
-    nombre: string;
-  };
 }
 
 export default function ProductosPage() {
@@ -68,7 +65,8 @@ export default function ProductosPage() {
     
     let query = supabase
       .from('productos')
-      .select('*, categorias(nombre)')
+      .select('*')
+      .eq('disponible', true)
       .order('categoria_id')
       .order('nombre');
 
@@ -689,8 +687,6 @@ export default function ProductosPage() {
                     </select>
                   </div>
                 )}
-                  </select>
-                </div>
 
                 <div className="flex items-center gap-3">
                   <input
