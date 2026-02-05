@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,7 @@ export default function Home() {
   }, [])
 
   async function checkUser() {
+    const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
     if (session) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { format, startOfDay, startOfWeek, startOfMonth, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
@@ -105,6 +105,7 @@ export default function DashboardPage() {
   // Cargar todos los datos en paralelo para máxima velocidad
   async function loadAllData() {
     try {
+      const supabase = createClient()
       const now = new Date()
       const todayStart = startOfDay(now).toISOString()
       const weekStart = startOfWeek(now, { locale: es }).toISOString()

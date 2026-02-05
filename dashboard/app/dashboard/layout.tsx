@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 
 export default function DashboardLayout({
@@ -25,6 +25,7 @@ export default function DashboardLayout({
   const [notificationData, setNotificationData] = useState<any>(null)
 
   useEffect(() => {
+    const supabase = createClient()
     // Cargar preferencia de modo oscuro
     const savedDarkMode = localStorage.getItem('darkMode') === 'true'
     setDarkMode(savedDarkMode)
@@ -86,6 +87,7 @@ export default function DashboardLayout({
   }, [])
 
   async function checkUser() {
+    const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     
     if (!session) {
@@ -177,6 +179,7 @@ export default function DashboardLayout({
   }, [])
 
   async function fetchPendingOrders() {
+    const supabase = createClient()
     const { count } = await supabase
       .from('pedidos')
       .select('*', { count: 'exact', head: true })
@@ -186,6 +189,7 @@ export default function DashboardLayout({
   }
 
   async function checkConnection() {
+    const supabase = createClient()
     try {
       const { error } = await supabase.from('pedidos').select('count', { count: 'exact', head: true }).limit(1)
       setIsOnline(!error)
@@ -195,6 +199,7 @@ export default function DashboardLayout({
   }
 
   async function handleLogout() {
+    const supabase = createClient()
     await supabase.auth.signOut()
     localStorage.removeItem('sessionExpiresAt')
     router.push('/login')
@@ -213,6 +218,7 @@ export default function DashboardLayout({
   }
 
   async function handleSearch(term: string) {
+    const supabase = createClient()
     setSearchTerm(term)
     
     if (term.length < 2) {

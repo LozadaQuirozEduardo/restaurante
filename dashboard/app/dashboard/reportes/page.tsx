@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { format, startOfDay, startOfWeek, startOfMonth, subDays, subWeeks, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts'
@@ -80,6 +80,7 @@ export default function ReportesPage() {
   }
 
   async function fetchReportesOptimizado() {
+    const supabase = createClient()
     try {
       const now = new Date()
       const todayStart = startOfDay(now).toISOString()

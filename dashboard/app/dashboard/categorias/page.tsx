@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +33,7 @@ export default function CategoriasPage() {
   }, [])
 
   async function cargarCategorias() {
+    const supabase = createClient()
     const { data, error } = await supabase
       .from('categorias')
       .select('*')
@@ -51,6 +52,7 @@ export default function CategoriasPage() {
   }
 
   async function guardarCategoria() {
+    const supabase = createClient()
     const datos = {
       ...formData,
       categoria_padre_id: formData.categoria_padre_id === 0 ? null : formData.categoria_padre_id
@@ -74,6 +76,7 @@ export default function CategoriasPage() {
   }
 
   async function eliminarCategoria(id: number) {
+    const supabase = createClient()
     if (confirm('¿Estás seguro de eliminar esta categoría? Los productos quedarán sin categoría.')) {
       await supabase
         .from('categorias')
