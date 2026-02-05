@@ -280,6 +280,7 @@ export default function DashboardLayout({
     { name: 'Dashboard', href: '/dashboard', icon: '📊', badge: null },
     { name: 'Pedidos', href: '/dashboard/pedidos', icon: '📦', badge: pendingOrders > 0 ? pendingOrders : null },
     { name: 'Productos', href: '/dashboard/productos', icon: '🍽️', badge: null },
+    { name: 'Categorías', href: '/dashboard/categorias', icon: '📁', badge: null },
     { name: 'Clientes', href: '/dashboard/clientes', icon: '👥', badge: null },
     { name: 'Reportes', href: '/dashboard/reportes', icon: '📈', badge: null },
   ]
