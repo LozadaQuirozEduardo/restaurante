@@ -65,6 +65,7 @@ export default function ProductosPage() {
   const cargarProductos = async () => {
     const supabase = createClient();
     
+    // Query optimizado sin JOIN para evitar conflictos con múltiples FK
     let query = supabase
       .from('productos')
       .select('*')
