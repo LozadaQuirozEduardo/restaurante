@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 

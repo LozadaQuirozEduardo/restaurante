@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic';
+
 interface Categoria {
   id: number
   nombre: string

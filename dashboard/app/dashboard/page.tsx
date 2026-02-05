@@ -8,6 +8,8 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import DatePicker from 'react-datepicker'
+
+export const dynamic = 'force-dynamic';
 import 'react-datepicker/dist/react-datepicker.css'
 
 interface Stats {

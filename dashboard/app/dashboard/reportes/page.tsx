@@ -8,6 +8,8 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+export const dynamic = 'force-dynamic';
+
 interface Stats {
   today: number
   yesterday: number
