@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase';
 interface Categoria {
   id: number;
   nombre: string;
+  categoria_padre_id: number | null;
 }
 
 interface Producto {
@@ -14,6 +15,7 @@ interface Producto {
   descripcion: string;
   precio: number;
   categoria_id: number;
+  subcategoria_id: number | null;
   disponible: boolean;
   categorias: {
     nombre: string;
@@ -35,6 +37,7 @@ export default function ProductosPage() {
     descripcion: '',
     precio: '',
     categoria_id: '',
+    subcategoria_id: '',
     disponible: true
   });
 
@@ -70,7 +73,17 @@ export default function ProductosPage() {
       .order('nombre');
 
     if (filtroCategoria) {
-      query = query.eq('categoria_id', filtroCategoria);
+      // Verificar si la categoría seleccionada es una subcategoría
+      const categoriaSeleccionada = categorias.find(c => c.id === filtroCategoria);
+      
+      if (categoriaSeleccionada?.categoria_padre_id) {
+        // Es una subcategoría, buscar por subcategoria_id
+        query = query.eq('subcategoria_id', filtroCategoria);
+      } else {
+        // Es categoría principal, buscar por categoria_id O subcategoria_id
+        // Para mostrar productos que pertenecen a esta categoría y sus subcategorías
+        query = query.or(`categoria_id.eq.${filtroCategoria},subcategoria_id.eq.${filtroCategoria}`);
+      }
     }
 
     const { data, error } = await query;
@@ -88,6 +101,17 @@ export default function ProductosPage() {
       cargarProductos();
     }
   }, [filtroCategoria]);
+
+  // Obtener subcategorías de una categoría padre
+  const obtenerSubcategorias = (categoriaId: string) => {
+    if (!categoriaId) return [];
+    return categorias.filter(c => c.categoria_padre_id === parseInt(categoriaId));
+  };
+
+  // Verificar si una categoría tiene subcategorías
+  const tieneSubcategorias = (categoriaId: string) => {
+    return obtenerSubcategorias(categoriaId).length > 0;
+  };
 
   const toggleDisponibilidad = async (producto: Producto) => {
     const supabase = createClient();
@@ -111,6 +135,7 @@ export default function ProductosPage() {
       descripcion: producto.descripcion,
       precio: producto.precio.toString(),
       categoria_id: producto.categoria_id.toString(),
+      subcategoria_id: producto.subcategoria_id ? producto.subcategoria_id.toString() : '',
       disponible: producto.disponible
     });
   };
@@ -126,6 +151,7 @@ export default function ProductosPage() {
         descripcion: formulario.descripcion,
         precio: parseFloat(formulario.precio),
         categoria_id: parseInt(formulario.categoria_id),
+        subcategoria_id: formulario.subcategoria_id ? parseInt(formulario.subcategoria_id) : null,
         disponible: formulario.disponible
       })
       .eq('id', editando.id);
@@ -146,6 +172,7 @@ export default function ProductosPage() {
       descripcion: '',
       precio: '',
       categoria_id: categorias.length > 0 ? categorias[0].id.toString() : '',
+      subcategoria_id: '',
       disponible: true
     });
   };
@@ -164,6 +191,7 @@ export default function ProductosPage() {
         descripcion: formulario.descripcion,
         precio: parseFloat(formulario.precio),
         categoria_id: parseInt(formulario.categoria_id),
+        subcategoria_id: formulario.subcategoria_id ? parseInt(formulario.subcategoria_id) : null,
         disponible: formulario.disponible
       });
 
@@ -179,7 +207,14 @@ export default function ProductosPage() {
 
   const productosPorCategoria = categorias.map(categoria => ({
     categoria,
-    productos: productos.filter(p => p.categoria_id === categoria.id)
+    productos: productos.filter(p => {
+      // Si es una subcategoría, buscar por subcategoria_id
+      if (categoria.categoria_padre_id) {
+        return p.subcategoria_id === categoria.id;
+      }
+      // Si es categoría principal, buscar por categoria_id
+      return p.categoria_id === categoria.id && !p.subcategoria_id;
+    })
   })).filter(grupo => grupo.productos.length > 0);
 
   // Filtrar productos según búsqueda
@@ -491,16 +526,39 @@ export default function ProductosPage() {
                   </label>
                   <select
                     value={formulario.categoria_id}
-                    onChange={(e) => setFormulario({ ...formulario, categoria_id: e.target.value })}
+                    onChange={(e) => {
+                      setFormulario({ ...formulario, categoria_id: e.target.value, subcategoria_id: '' });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    {categorias.map((categoria) => (
+                    {categorias.filter(c => !c.categoria_padre_id).map((categoria) => (
                       <option key={categoria.id} value={categoria.id}>
                         {categoria.nombre}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                {/* Selector de subcategoría si la categoría seleccionada tiene subcategorías */}
+                {tieneSubcategorias(formulario.categoria_id) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Subcategoría
+                    </label>
+                    <select
+                      value={formulario.subcategoria_id}
+                      onChange={(e) => setFormulario({ ...formulario, subcategoria_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Sin subcategoría</option>
+                      {obtenerSubcategorias(formulario.categoria_id).map((subcategoria) => (
+                        <option key={subcategoria.id} value={subcategoria.id}>
+                          {subcategoria.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="flex items-center">
                   <input
@@ -597,15 +655,40 @@ export default function ProductosPage() {
                   </label>
                   <select
                     value={formulario.categoria_id}
-                    onChange={(e) => setFormulario({ ...formulario, categoria_id: e.target.value })}
+                    onChange={(e) => {
+                      setFormulario({ ...formulario, categoria_id: e.target.value, subcategoria_id: '' });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Selecciona una categoría</option>
-                    {categorias.map((cat) => (
+                    {categorias.filter(c => !c.categoria_padre_id).map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.nombre}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                {/* Selector de subcategoría si la categoría seleccionada tiene subcategorías */}
+                {tieneSubcategorias(formulario.categoria_id) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Subcategoría
+                    </label>
+                    <select
+                      value={formulario.subcategoria_id}
+                      onChange={(e) => setFormulario({ ...formulario, subcategoria_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Sin subcategoría</option>
+                      {obtenerSubcategorias(formulario.categoria_id).map((subcategoria) => (
+                        <option key={subcategoria.id} value={subcategoria.id}>
+                          {subcategoria.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                   </select>
                 </div>
 
